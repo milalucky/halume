@@ -5,6 +5,13 @@ import SwiftUI
 struct HaluMeApp: App {
     @State private var store = BudgetStore()
 
+    init() {
+        // Design checks: `--demo --light` / `--demo --dark`, set before any window draws.
+        let args = CommandLine.arguments
+        if args.contains("--demo"), args.contains("--light") { NSApplication.shared.appearance = NSAppearance(named: .aqua) }
+        if args.contains("--demo"), args.contains("--dark") { NSApplication.shared.appearance = NSAppearance(named: .darkAqua) }
+    }
+
     var body: some Scene {
         Window("HaluMe", id: "main") {
             Group {
@@ -18,11 +25,6 @@ struct HaluMeApp: App {
             .tint(Palette.orange)
             .frame(minWidth: 620, minHeight: 640)
             .backdrop()
-            .onAppear {
-                // Design checks: `--demo --light` / `--demo --dark`.
-                if store.isDemo, CommandLine.arguments.contains("--light") { NSApp.appearance = NSAppearance(named: .aqua) }
-                if store.isDemo, CommandLine.arguments.contains("--dark") { NSApp.appearance = NSAppearance(named: .darkAqua) }
-            }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 760, height: 860)

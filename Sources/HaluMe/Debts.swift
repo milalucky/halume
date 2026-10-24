@@ -264,7 +264,7 @@ struct PayoffSheet: View {
                 HStack(alignment: .top, spacing: 28) {
                     Stat(label: "Left", value: left.money(currency), big: true)
                     if let now {
-                        Stat(label: "Paid off", value: now.date.formatted(.dateTime.month(.wide).year()))
+                        Stat(label: "Paid off in", value: now.date.formatted(.dateTime.month(.wide).year()))
                         if debt.rate > 0 { Stat(label: "Interest ahead", value: now.interest.money(currency)) }
                     }
                 }

@@ -169,7 +169,7 @@ private struct WelcomeStep: View {
             Field("Your name") { TextField("Optional", text: $draft.name) }
             Field("Currency") {
                 Picker("Currency", selection: $draft.currency) {
-                    ForEach(Locale.commonISOCurrencyCodes, id: \.self) { code in
+                    ForEach(Array(Set(Locale.commonISOCurrencyCodes + [draft.currency])).sorted(), id: \.self) { code in
                         Text("\(code) — \(Locale.current.localizedString(forCurrencyCode: code) ?? code)").tag(code)
                     }
                 }
