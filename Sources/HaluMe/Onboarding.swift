@@ -46,7 +46,7 @@ struct OnboardingView: View {
                         .keyboardShortcut(.cancelAction)
                 }
                 Spacer()
-                Button(step == count - 1 ? "Start planning" : "Continue") {
+                Button(LocalizedStringKey(step == count - 1 ? "Start planning" : "Continue")) {
                     if step == count - 1 { store.budget = draft.budget() } else { step += 1 }
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -190,7 +190,7 @@ struct PayEditor: View {
         }
         Field("How often") {
             Picker("How often", selection: $pay.frequency) {
-                ForEach(Frequency.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(Frequency.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -248,7 +248,7 @@ struct BillsEditor: View {
             }
             .card(padding: 20)
         }
-        Suggestions(names: suggestions.filter { name in !bills.contains { $0.name == name } }) { name in
+        Suggestions(names: suggestions.filter { name in !bills.contains { $0.name == String(localized: String.LocalizationValue(name)) } }) { name in
             bills.append(Bill(owner: .member(member), name: name, amount: 0, day: 1))
         }
     }
@@ -271,7 +271,7 @@ struct SavingsEditor: View {
                     Field("Name") { TextField("Name", text: $envelope.name) }
                     Field("How") {
                         Picker("How", selection: $envelope.kind) {
-                            ForEach(GoalKind.allCases) { Text($0.rawValue).tag($0) }
+                            ForEach(GoalKind.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
                         }
                         .labelsHidden()
                     }
@@ -302,10 +302,10 @@ struct SavingsEditor: View {
             .card(padding: 20)
         }
         Suggestions(names: ["Emergency fund", "Vacation", "Gifts", "New laptop"]
-            .filter { name in !envelopes.contains { $0.name == name } }) { name in
+            .filter { name in !envelopes.contains { $0.name == String(localized: String.LocalizationValue(name)) } }) { name in
             let goal: Goal = switch name {
-            case "Emergency fund": .percent(10)
-            case "Gifts": .yearly(0)
+            case String(localized: "Emergency fund"): .percent(10)
+            case String(localized: "Gifts"): .yearly(0)
             default: .target(0, by: Calendar.current.date(byAdding: .month, value: 6, to: Date())!)
             }
             envelopes.append(Envelope(owner: .member(member), name: name, goal: goal))
@@ -333,7 +333,7 @@ enum GoalKind: String, CaseIterable, Identifiable {
     case target = "Goal by a date", percent = "% of each pay", perPayday = "Same each payday", yearly = "Yearly expense"
     var id: Self { self }
 
-    var amountLabel: String {
+    var amountLabel: LocalizedStringKey {
         switch self {
         case .target: "Goal"
         case .perPayday: "Each payday"
@@ -387,8 +387,8 @@ extension Envelope {
 // MARK: Pieces
 
 struct StepTitle: View {
-    let title: String, subtitle: String
-    init(_ title: String, _ subtitle: String) { self.title = title; self.subtitle = subtitle }
+    let title: LocalizedStringKey, subtitle: LocalizedStringKey
+    init(_ title: LocalizedStringKey, _ subtitle: LocalizedStringKey) { self.title = title; self.subtitle = subtitle }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -399,7 +399,7 @@ struct StepTitle: View {
 }
 
 private struct Point: View {
-    let icon: String, title: String, text: String
+    let icon: String, title: LocalizedStringKey, text: LocalizedStringKey
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {

@@ -205,9 +205,9 @@ enum Demo {
             budget.paydays.append(record)
             planner = Planner(budget)
         }
-        if let vacation = budget.envelopes.first(where: { $0.name == "Vacation" }) {
+        if let vacation = budget.envelopes.first(where: { $0.name == String(localized: "Vacation") }) {
             budget.withdrawals.append(Withdrawal(envelope: vacation.id, date: calendar.date(byAdding: .month, value: -5, to: today)!,
-                                                 amount: 25_000, note: "Car repair"))
+                                                 amount: 25_000, note: String(localized: "Car repair")))
         }
     }
 
@@ -217,31 +217,30 @@ enum Demo {
         let today = calendar.startOfDay(for: Date())
         func day(_ offset: Int) -> Date { calendar.date(byAdding: .day, value: offset, to: today)! }
         let started = calendar.date(byAdding: .month, value: -14, to: today)!
-        let income = Income(member: me.id, name: "Salary", schedule: .monthly(days: [10, 25]), expected: 115_000)
+        let income = Income(member: me.id, name: String(localized: "Salary"), schedule: .monthly(days: [10, 25]), expected: 115_000)
         var budget = Budget(
             name: "Milana", currency: "RUB", members: [me], incomes: [income],
             bills: [
-                Bill(owner: .member(me.id), name: "Rent", amount: 55_000, day: 5),
-                Bill(owner: .member(me.id), name: "Utilities", amount: 6_500, day: 20),
-                Bill(owner: .member(me.id), name: "Phone & internet", amount: 1_400, day: 15),
-                Bill(owner: .member(me.id), name: "Subscriptions", amount: 2_100, day: 12),
+                Bill(owner: .member(me.id), name: String(localized: "Rent"), amount: 55_000, day: 5),
+                Bill(owner: .member(me.id), name: String(localized: "Utilities"), amount: 6_500, day: 20),
+                Bill(owner: .member(me.id), name: String(localized: "Phone & internet"), amount: 1_400, day: 15),
             ],
             envelopes: [
-                Envelope(owner: .member(me.id), name: "Vacation", goal: .target(180_000, by: calendar.date(byAdding: .month, value: 8, to: today)!),
+                Envelope(owner: .member(me.id), name: String(localized: "Vacation"), goal: .target(180_000, by: calendar.date(byAdding: .month, value: 8, to: today)!),
                          priority: 0, openedAt: started),
-                Envelope(owner: .member(me.id), name: "Emergency fund", goal: .percent(10), priority: 1, opening: 40_000, openedAt: started,
+                Envelope(owner: .member(me.id), name: String(localized: "Emergency fund"), goal: .percent(10), priority: 1, opening: 40_000, openedAt: started,
                          holding: .savingsAccount, rate: 12, interestDay: 1),
-                Envelope(owner: .member(me.id), name: "Gifts", goal: .yearly(36_000), priority: 2, openedAt: started),
-                Envelope(owner: .member(me.id), name: "Deposit", goal: .open, priority: 3, opening: 300_000, openedAt: started,
+                Envelope(owner: .member(me.id), name: String(localized: "Gifts"), goal: .yearly(36_000), priority: 2, openedAt: started),
+                Envelope(owner: .member(me.id), name: String(localized: "Deposit"), goal: .open, priority: 3, opening: 300_000, openedAt: started,
                          holding: .deposit, rate: 16, interestDay: 15, interestToCard: true,
                          maturity: calendar.date(byAdding: .month, value: 4, to: today)!),
             ],
             debts: [
                 Debt(owner: .member(me.id), name: "Yandex Split", kind: .installment, original: 24_000, balance: 12_000,
                      payment: 6_000, day: 28),
-                Debt(owner: .member(me.id), name: "Car loan", kind: .loan, original: 900_000, balance: 412_000,
+                Debt(owner: .member(me.id), name: String(localized: "Car loan"), kind: .loan, original: 900_000, balance: 412_000,
                      rate: 14.5, payment: 21_000, day: 15),
-                Debt(owner: .member(me.id), name: "Anna", kind: .personal, balance: 8_000, payment: 8_000, day: 1),
+                Debt(owner: .member(me.id), name: String(localized: "Anna"), kind: .personal, balance: 8_000, payment: 8_000, day: 1),
             ],
             subscriptions: [
                 Subscription(owner: .member(me.id), name: "Yandex Plus", amount: 399, anchor: day(3), category: "Video"),
@@ -252,14 +251,14 @@ enum Demo {
                              category: "Video"),
                 Subscription(owner: .member(me.id), name: "Telegram Premium", amount: 2_990, cycle: .yearly, anchor: day(140),
                              category: "Software"),
-                Subscription(owner: .member(me.id), name: "Gym", amount: 3_500, anchor: day(8), isActive: false, category: "Other"),
+                Subscription(owner: .member(me.id), name: String(localized: "Gym"), amount: 3_500, anchor: day(8), isActive: false, category: "Other"),
             ]
         )
         addHistory(to: &budget, member: me.id, before: today)
         let planner = Planner(budget)
         if let start = planner.current(on: today, of: me.id) {
             var record = planner.confirm(planner.plan(for: me.id, on: start), actual: 115_000)
-            for i in record.allocations.indices where ["Rent", "Vacation", "Yandex Split"].contains(budget.name(of: record.allocations[i].target)) {
+            for i in record.allocations.indices where [String(localized: "Rent"), String(localized: "Vacation"), "Yandex Split"].contains(budget.name(of: record.allocations[i].target)) {
                 record.allocations[i].isDone = true
             }
             budget.upsert(record)

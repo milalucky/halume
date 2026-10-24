@@ -22,6 +22,13 @@
     <string>15.0</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.finance</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>ru</string>
+    </array>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

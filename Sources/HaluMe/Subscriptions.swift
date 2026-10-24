@@ -124,7 +124,7 @@ private struct SubscriptionRow: View {
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Edit…") { store.sheet = .subscription(sub) }
-            Button(sub.isActive ? "Mark as Cancelled" : "Resume") {
+            Button(LocalizedStringKey(sub.isActive ? "Mark as Cancelled" : "Resume")) {
                 var changed = sub
                 changed.isActive.toggle()
                 store.save(changed)
@@ -170,9 +170,9 @@ struct SubscriptionEditor: View {
     var body: some View {
         let currency = store.budget?.currency ?? "USD"
         let isNew = !(store.budget?.subscriptions.contains { $0.id == subscription.id } ?? false)
-        SheetFrame(title: isNew ? "New subscription" : "Edit subscription",
+        SheetFrame(title: LocalizedStringKey(isNew ? "New subscription" : "Edit subscription"),
                    subtitle: "Charges go into the paycheck plan, and the app reminds you before each one.",
-                   action: isNew ? "Add" : "Save",
+                   action: LocalizedStringKey(isNew ? "Add" : "Save"),
                    canSave: !subscription.name.trimmingCharacters(in: .whitespaces).isEmpty && subscription.amount > 0,
                    save: save) {
             Field("Name") { TextField("e.g. Music", text: $subscription.name) }
@@ -218,7 +218,7 @@ struct SubscriptionEditor: View {
             }
             if !isNew {
                 HStack(spacing: 16) {
-                    Button(subscription.isActive ? "Mark as Cancelled" : "Resume") {
+                    Button(LocalizedStringKey(subscription.isActive ? "Mark as Cancelled" : "Resume")) {
                         subscription.isActive.toggle()
                         save()
                         store.sheet = nil

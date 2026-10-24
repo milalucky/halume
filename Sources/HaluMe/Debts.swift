@@ -179,9 +179,9 @@ struct DebtEditor: View {
     var body: some View {
         let currency = store.budget?.currency ?? "USD"
         let isNew = !(store.budget?.debts.contains { $0.id == debt.id } ?? false)
-        SheetFrame(title: isNew ? "New debt" : "Edit debt",
+        SheetFrame(title: LocalizedStringKey(isNew ? "New debt" : "Edit debt"),
                    subtitle: "Payments go into the paycheck before each due day. When nothing is left, it's marked paid off.",
-                   action: isNew ? "Add" : "Save",
+                   action: LocalizedStringKey(isNew ? "Add" : "Save"),
                    canSave: !debt.name.trimmingCharacters(in: .whitespaces).isEmpty && left > 0 && debt.payment > 0,
                    save: save) {
             Field("What kind") {
@@ -190,12 +190,12 @@ struct DebtEditor: View {
                 }
                 .labelsHidden()
             }
-            Field(debt.kind == .personal ? "Who you owe" : "Name") {
-                TextField(debt.kind == .installment ? "e.g. Split for headphones" : "Name", text: $debt.name)
+            Field(LocalizedStringKey(debt.kind == .personal ? "Who you owe" : "Name")) {
+                TextField(LocalizedStringKey(debt.kind == .installment ? "e.g. Split for headphones" : "Name"), text: $debt.name)
             }
             HStack(alignment: .top, spacing: 12) {
                 Field("Left to pay") { AmountField(amount: $left, currency: currency) }
-                Field(debt.kind == .personal ? "Paying back" : "Each month") { AmountField(amount: $debt.payment, currency: currency) }
+                Field(LocalizedStringKey(debt.kind == .personal ? "Paying back" : "Each month")) { AmountField(amount: $debt.payment, currency: currency) }
             }
             HStack(alignment: .top, spacing: 12) {
                 Field("Due day") { DayPicker(day: $debt.day) }.frame(width: 100)
@@ -286,7 +286,8 @@ struct PayoffSheet: View {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Paid off by \(then.date.formatted(.dateTime.month(.wide).year()))").font(.body.weight(.semibold))
-                                Text(saved > 0 ? "\(months) months sooner, \(saved.money(currency)) less interest" : "\(months) months sooner")
+                                Text(saved > 0 ? String(localized: "\(months) months sooner, \(saved.money(currency)) less interest")
+                                                : String(localized: "\(months) months sooner"))
                                     .foregroundStyle(.secondary)
                             }
                         } icon: {

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>%lld months sooner</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key><string>%#@months@ sooner</string>
+        <key>months</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key><string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key><string>lld</string>
+            <key>one</key><string>%lld month</string>
+            <key>other</key><string>%lld months</string>
+        </dict>
+    </dict>
+    <key>%lld months sooner, %@ less interest</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key><string>%#@months@ sooner, %@ less interest</string>
+        <key>months</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key><string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key><string>lld</string>
+            <key>one</key><string>%lld month</string>
+            <key>other</key><string>%lld months</string>
+        </dict>
+    </dict>
+</dict>
+</plist>

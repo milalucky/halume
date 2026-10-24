@@ -3,9 +3,9 @@ import SwiftUI
 
 /// A small modal with a title, content and Cancel / main action.
 struct SheetFrame<Content: View>: View {
-    let title: String
-    let subtitle: String
-    let action: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    let action: LocalizedStringKey
     var canSave = true
     let save: () -> Void
     @ViewBuilder let content: Content

@@ -25,7 +25,7 @@ struct Hero: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 Bar(value: Double(passed) / Double(total))
-                Text(note ?? "Day \(passed) of \(total)")
+                Text(note ?? String(localized: "Day \(passed) of \(total)"))
                     .font(.callout).foregroundStyle(.secondary)
             }
             .frame(maxWidth: 360, alignment: .leading)
@@ -35,7 +35,7 @@ struct Hero: View {
 
     private var payday: String {
         let date = allowance.next.formatted(.dateTime.day().month(.wide))
-        return allowance.daysLeft == 1 ? "Payday tomorrow, \(date)" : "Payday in \(allowance.daysLeft) days, \(date)"
+        return allowance.daysLeft == 1 ? String(localized: "Payday tomorrow, \(date)") : String(localized: "Payday in \(allowance.daysLeft) days, \(date)")
     }
 }
 
@@ -80,7 +80,7 @@ struct PlanList: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("From your \(plan.date.formatted(.dateTime.day().month(.wide))) pay").font(.headline)
                     if toggle != nil, !plan.lines.isEmpty {
-                        Text(done == plan.lines.count ? "All done" : "\(done) of \(plan.lines.count) done")
+                        Text(done == plan.lines.count ? String(localized: "All done") : String(localized: "\(done) of \(plan.lines.count) done"))
                             .font(.callout).foregroundStyle(.secondary)
                     }
                 }

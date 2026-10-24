@@ -193,7 +193,7 @@ private struct ComingUp: View {
                                 .background(Circle().fill(Palette.green.opacity(0.15)))
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Interest from \(envelope.name)")
-                                Text(envelope.interestToCard ? "To your card \(date.relativeDay)" : "Into the account \(date.relativeDay)")
+                                Text(envelope.interestToCard ? String(localized: "To your card \(date.relativeDay)") : String(localized: "Into the account \(date.relativeDay)"))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -207,7 +207,7 @@ private struct ComingUp: View {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(sub.name)
                                 Text(sub.trialEnds.map { Calendar.current.isDate($0, inSameDayAs: date) } == true
-                                     ? "Trial ends \(date.relativeDay)" : "Charge \(date.relativeDay)")
+                                     ? String(localized: "Trial ends \(date.relativeDay)") : String(localized: "Charge \(date.relativeDay)"))
                                     .font(.caption)
                                     .foregroundStyle(sub.trialEnds != nil ? AnyShapeStyle(Palette.orange) : AnyShapeStyle(.secondary))
                             }

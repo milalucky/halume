@@ -90,7 +90,7 @@ struct Bar: View {
 /// A round icon button with a tooltip and a spoken label.
 struct IconButton: View {
     let icon: String
-    let label: String
+    let label: LocalizedStringKey
     let action: () -> Void
     @State private var hovering = false
 
@@ -104,8 +104,8 @@ struct IconButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .help(label)
-        .accessibilityLabel(label)
+        .help(Text(label))
+        .accessibilityLabel(Text(label))
     }
 }
 
@@ -142,11 +142,11 @@ struct Brand: View {
 
 /// A label that stays visible above its control.
 struct Field<Content: View>: View {
-    let label: String
-    var hint: String?
+    let label: LocalizedStringKey
+    var hint: LocalizedStringKey?
     @ViewBuilder let content: Content
 
-    init(_ label: String, hint: String? = nil, @ViewBuilder content: () -> Content) {
+    init(_ label: LocalizedStringKey, hint: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content) {
         self.label = label; self.hint = hint; self.content = content()
     }
 
@@ -174,7 +174,7 @@ struct DayPicker: View {
 
     var body: some View {
         Picker("Day", selection: $day) {
-            ForEach(1...31, id: \.self) { Text($0 == 31 ? "Last" : "\($0)").tag($0) }
+            ForEach(1...31, id: \.self) { Text($0 == 31 ? String(localized: "Last") : "\($0)").tag($0) }
         }
         .labelsHidden()
     }
@@ -201,7 +201,9 @@ struct Suggestions: View {
     var body: some View {
         FlowLayout(spacing: 8) {
             ForEach(names + ["Other"], id: \.self) { name in
-                Button { add(name == "Other" ? "" : name) } label: { Label(name, systemImage: "plus") }
+                Button { add(name == "Other" ? "" : String(localized: String.LocalizationValue(name))) } label: {
+                    Label(LocalizedStringKey(name), systemImage: "plus")
+                }
                     .buttonStyle(SecondaryButtonStyle())
             }
         }
