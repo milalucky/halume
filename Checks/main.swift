@@ -142,6 +142,43 @@ withSubs.paydays = []
 check(Planner(withSubs, calendar: calendar).plan(for: me.id, on: d(2026, 10, 23)).lines.contains { $0.target == .subscription(music.id) && $0.amount == 299 },
       "subscription in the plan")
 
+// Savings account: 300 000 at 12%, interest on the 1st stays in the account.
+let ozon = Envelope(owner: .member(me.id), name: "Savings account", goal: .open, opening: 300_000, openedAt: d(2026, 9, 15),
+                    holding: .savingsAccount, rate: 12, interestDay: 1)
+var withInterest = budget
+withInterest.envelopes = [ozon]
+withInterest.paydays = []
+var ip = Planner(withInterest, calendar: calendar)
+check(ip.balance(of: ozon, before: d(2026, 10, 2)) == 303_000, "one month of interest added")
+check(ip.balance(of: ozon, before: d(2026, 11, 2)) == 306_030, "compounded")
+check(ip.nextInterest(of: ozon, from: d(2026, 10, 25))! == (d(2026, 11, 1), 3_030), "next interest")
+var toCard = ozon; toCard.interestToCard = true
+withInterest.envelopes = [toCard]
+ip = Planner(withInterest, calendar: calendar)
+check(ip.balance(of: toCard, before: d(2026, 11, 2)) == 300_000, "interest paid to the card doesn't grow the balance")
+withInterest.withdrawals = [Withdrawal(envelope: toCard.id, date: d(2026, 10, 20), amount: 50_000)]
+ip = Planner(withInterest, calendar: calendar)
+check(ip.balance(of: toCard, before: d(2026, 10, 21)) == 250_000, "withdrawal comes off")
+check(Planner.yearlyInterest(on: 100_000, rate: 12) == 12_000, "yearly interest")
+
+// Stats: two confirmed periods, a skipped transfer and leftover.
+var history = budget
+history.paydays = []
+var hp = Planner(history, calendar: calendar)
+var p1 = hp.confirm(hp.plan(for: me.id, on: d(2026, 10, 9)), actual: 70_000)
+p1.allocations = p1.allocations.map { a in var a = a; if case .envelope = a.target, a.target != .envelope(cushion.id) { a.isDone = true }; return a }
+var p2 = hp.confirm(hp.plan(for: me.id, on: d(2026, 10, 23)), actual: 80_000)
+p2.leftover = 2_000
+history.paydays = [p1, p2]
+hp = Planner(history, calendar: calendar)
+let periods = hp.history(of: me.id, from: d(2026, 10, 1), to: d(2026, 10, 31))
+check(periods.count == 2 && periods[0].income == 70_000 && periods[0].expected == 80_000, "history income")
+let cushionPlanned = p1.allocations.first { $0.target == .envelope(cushion.id) }!.amount
+check(periods[0].missed == cushionPlanned && periods[0].leftover == 2_000, "missed transfer and leftover")
+check(periods[0].overspent == max(0, cushionPlanned - 2_000), "overspent")
+check(hp.group(periods, by: .month).count == 1 && hp.group(periods, by: .month)[0].income == 150_000, "grouped by month")
+check(hp.csv(periods).split(separator: "\n").count == 3, "csv rows")
+
 // Old files without the newer lists still load.
 let old = #"{"id":"\#(UUID())","name":"Old","currency":"RUB","members":[]}"#
 check((try? JSONDecoder().decode(Budget.self, from: Data(old.utf8)))?.debts.isEmpty == true, "older budget file decodes")

@@ -12,16 +12,17 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var envelopes: [Envelope]
     public var debts: [Debt]
     public var subscriptions: [Subscription]
+    public var withdrawals: [Withdrawal]
     public var paydays: [Payday]
     public var checks: [BalanceCheck]
 
     public init(id: UUID = UUID(), name: String, currency: String, members: [Member],
                 incomes: [Income] = [], bills: [Bill] = [], envelopes: [Envelope] = [],
-                debts: [Debt] = [], subscriptions: [Subscription] = [],
+                debts: [Debt] = [], subscriptions: [Subscription] = [], withdrawals: [Withdrawal] = [],
                 paydays: [Payday] = [], checks: [BalanceCheck] = []) {
         self.id = id; self.name = name; self.currency = currency; self.members = members
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
-        self.debts = debts; self.subscriptions = subscriptions
+        self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
         self.paydays = paydays; self.checks = checks
     }
 
@@ -37,6 +38,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         envelopes = try c.decodeIfPresent([Envelope].self, forKey: .envelopes) ?? []
         debts = try c.decodeIfPresent([Debt].self, forKey: .debts) ?? []
         subscriptions = try c.decodeIfPresent([Subscription].self, forKey: .subscriptions) ?? []
+        withdrawals = try c.decodeIfPresent([Withdrawal].self, forKey: .withdrawals) ?? []
         paydays = try c.decodeIfPresent([Payday].self, forKey: .paydays) ?? []
         checks = try c.decodeIfPresent([BalanceCheck].self, forKey: .checks) ?? []
     }
@@ -123,13 +125,64 @@ public struct Envelope: Codable, Sendable, Hashable, Identifiable {
     /// Lower is funded first when pay runs short.
     public var priority: Int
     public var split: Split
-    /// Money already in it before the app.
+    /// Money already in it on `openedAt`.
     public var opening: Decimal
+    public var openedAt: Date
+    /// Where the money lives; savings accounts and deposits earn `rate`.
+    public var holding: Holding
+    /// Annual interest, percent.
+    public var rate: Decimal
+    /// Day of the month the interest is paid.
+    public var interestDay: Int
+    /// Interest goes to the card (income) instead of staying in the account.
+    public var interestToCard: Bool
+    /// A deposit's end date.
+    public var maturity: Date?
 
     public init(id: UUID = UUID(), owner: Owner, name: String, goal: Goal, priority: Int = 0,
-                split: Split = .equal, opening: Decimal = 0) {
+                split: Split = .equal, opening: Decimal = 0, openedAt: Date = Date(),
+                holding: Holding = .card, rate: Decimal = 0, interestDay: Int = 1,
+                interestToCard: Bool = false, maturity: Date? = nil) {
         self.id = id; self.owner = owner; self.name = name; self.goal = goal
-        self.priority = priority; self.split = split; self.opening = opening
+        self.priority = priority; self.split = split; self.opening = opening; self.openedAt = openedAt
+        self.holding = holding; self.rate = rate; self.interestDay = interestDay
+        self.interestToCard = interestToCard; self.maturity = maturity
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        owner = try c.decode(Owner.self, forKey: .owner)
+        name = try c.decode(String.self, forKey: .name)
+        goal = try c.decode(Goal.self, forKey: .goal)
+        priority = try c.decodeIfPresent(Int.self, forKey: .priority) ?? 0
+        split = try c.decodeIfPresent(Split.self, forKey: .split) ?? .equal
+        opening = try c.decodeIfPresent(Decimal.self, forKey: .opening) ?? 0
+        openedAt = try c.decodeIfPresent(Date.self, forKey: .openedAt) ?? .distantPast
+        holding = try c.decodeIfPresent(Holding.self, forKey: .holding) ?? .card
+        rate = try c.decodeIfPresent(Decimal.self, forKey: .rate) ?? 0
+        interestDay = try c.decodeIfPresent(Int.self, forKey: .interestDay) ?? 1
+        interestToCard = try c.decodeIfPresent(Bool.self, forKey: .interestToCard) ?? false
+        maturity = try c.decodeIfPresent(Date.self, forKey: .maturity)
+    }
+}
+
+public enum Holding: String, Codable, Sendable, Hashable, CaseIterable {
+    case card, cash, savingsAccount, deposit, investments
+
+    public var earnsInterest: Bool { self == .savingsAccount || self == .deposit }
+}
+
+/// Money taken out of an envelope.
+public struct Withdrawal: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var envelope: UUID
+    public var date: Date
+    public var amount: Decimal
+    public var note: String
+
+    public init(id: UUID = UUID(), envelope: UUID, date: Date = Date(), amount: Decimal, note: String = "") {
+        self.id = id; self.envelope = envelope; self.date = date; self.amount = amount; self.note = note
     }
 }
 
@@ -159,6 +212,8 @@ public struct Payday: Codable, Sendable, Hashable, Identifiable {
     public var date: Date
     public var actual: Decimal?
     public var allocations: [Allocation]
+    /// Money left from the previous pay when this one came, if the user said.
+    public var leftover: Decimal?
 
     public init(id: UUID = UUID(), member: UUID, date: Date, actual: Decimal?, allocations: [Allocation]) {
         self.id = id; self.member = member; self.date = date

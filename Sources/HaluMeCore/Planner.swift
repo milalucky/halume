@@ -132,12 +132,43 @@ public struct Planner: Sendable {
     }
 
     /// Opening money plus transfers marked done on paydays before `date`.
+    /// Opening money, transfers marked done, withdrawals and interest that stays in the account, before `date`.
     public func balance(of envelope: Envelope, before date: Date) -> Decimal {
-        let date = day(date)
-        return budget.paydays.filter { day($0.date) < date }
-            .flatMap(\.allocations)
-            .filter { $0.isDone && $0.target == .envelope(envelope.id) }
-            .reduce(envelope.opening) { $0 + $1.amount }
+        let date = day(date), opened = day(envelope.openedAt)
+        var events: [(date: Date, change: Decimal?)] = []
+        for payday in budget.paydays where day(payday.date) < date {
+            for a in payday.allocations where a.isDone && a.target == .envelope(envelope.id) {
+                events.append((day(payday.date), a.amount))
+            }
+        }
+        for w in budget.withdrawals where w.envelope == envelope.id && day(w.date) < date {
+            events.append((day(w.date), -w.amount))
+        }
+        if envelope.holding.earnsInterest, envelope.rate > 0, !envelope.interestToCard, opened > .distantPast {
+            // nil change = interest day: the month's interest on what is there.
+            let last = envelope.maturity.map { min(day($0), add(-1, to: date)!) } ?? add(-1, to: date)!
+            if opened < last {
+                events += monthDays([envelope.interestDay], from: add(1, to: opened)!, to: last).map { ($0, nil) }
+            }
+        }
+        // shortcut: interest on the balance at the payout day, not the daily average banks use.
+        return events.sorted { $0.date < $1.date }.reduce(envelope.opening) { total, e in
+            max(0, total + (e.change ?? total * envelope.rate / 1200))
+        }
+    }
+
+    /// The next interest payout of a savings account or deposit, on or after `date`.
+    public func nextInterest(of envelope: Envelope, from date: Date) -> (date: Date, amount: Decimal)? {
+        guard envelope.holding.earnsInterest, envelope.rate > 0 else { return nil }
+        let start = day(date)
+        guard let payout = monthDays([envelope.interestDay], from: start, to: calendar.date(byAdding: .month, value: 1, to: start)!).first,
+              envelope.maturity.map({ payout <= day($0) }) ?? true else { return nil }
+        return (payout, down(balance(of: envelope, before: payout) * envelope.rate / 1200))
+    }
+
+    /// Interest a year at the envelope's rate on `amount`.
+    public static func yearlyInterest(on amount: Decimal, rate: Decimal) -> Decimal {
+        down(amount * rate / 100)
     }
 
     // MARK: Plan
