@@ -297,6 +297,7 @@ struct SavingsEditor: View {
                         .frame(width: 150)
                     Spacer(minLength: 0)
                 }
+                HoldingFields(envelope: $envelope)
             }
             .card(padding: 20)
         }

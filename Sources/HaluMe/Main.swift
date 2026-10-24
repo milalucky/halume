@@ -25,6 +25,7 @@ struct MainView: View {
                 case .savings: SavingsPage()
                 case .debts: DebtsPage()
                 case .subscriptions: SubscriptionsPage()
+                case .stats: StatsPage()
                 }
             }
             .backdrop()
@@ -38,6 +39,7 @@ struct MainView: View {
                 case .debt(let debt): DebtEditor(debt: debt)
                 case .payoff(let id): PayoffSheet(debtID: id)
                 case .subscription(let sub): SubscriptionEditor(subscription: sub)
+                case .withdraw(let id): WithdrawSheet(envelopeID: id)
                 }
             }
             .environment(store)
@@ -58,6 +60,7 @@ extension Section {
         case .savings: "Savings"
         case .debts: "Debts"
         case .subscriptions: "Subscriptions"
+        case .stats: "Stats"
         }
     }
 
@@ -67,6 +70,7 @@ extension Section {
         case .savings: "tray.full"
         case .debts: "creditcard"
         case .subscriptions: "repeat"
+        case .stats: "chart.bar.xaxis"
         }
     }
 }
@@ -172,10 +176,31 @@ private struct ComingUp: View {
             guard let next = planner.nextCharge(of: sub, after: today), next <= week else { return nil }
             return (sub, next)
         }.sorted { $0.1 < $1.1 }
-        if !items.isEmpty {
+        let interest = budget.envelopes.compactMap { envelope -> (Envelope, Date, Decimal)? in
+            guard let next = planner.nextInterest(of: envelope, from: today), next.date <= week, next.amount > 0 else { return nil }
+            return (envelope, next.date, next.amount)
+        }
+        if !items.isEmpty || !interest.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Coming up this week").font(.headline)
                 VStack(spacing: 0) {
+                    ForEach(interest, id: \.0.id) { envelope, date, amount in
+                        HStack(spacing: 12) {
+                            Image(systemName: "percent")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Palette.green)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(Palette.green.opacity(0.15)))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Interest from \(envelope.name)")
+                                Text(envelope.interestToCard ? "To your card \(date.relativeDay)" : "Into the account \(date.relativeDay)")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("+" + amount.money(budget.currency)).monospacedDigit().foregroundStyle(Palette.green)
+                        }
+                        .padding(.vertical, 8)
+                    }
                     ForEach(items, id: \.0.id) { sub, date in
                         HStack(spacing: 12) {
                             Monogram(name: sub.name)
@@ -193,27 +218,6 @@ private struct ComingUp: View {
                     }
                 }
                 .card(padding: 16)
-            }
-        }
-    }
-}
-
-// MARK: Savings
-
-struct SavingsPage: View {
-    @Environment(BudgetStore.self) private var store
-
-    var body: some View {
-        Page(title: "Savings") {
-            IconButton(icon: "slider.horizontal.3", label: "Edit savings") { store.sheet = .plan }
-        } content: {
-            if let planner = store.planner {
-                if planner.budget.envelopes.isEmpty {
-                    EmptyState(icon: "tray", title: "No savings yet",
-                               text: "Add a goal, an emergency fund or a yearly expense, and part of each pay goes there first.")
-                } else {
-                    SavingsGrid(planner: planner, today: Date())
-                }
             }
         }
     }

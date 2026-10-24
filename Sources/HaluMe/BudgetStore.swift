@@ -7,6 +7,7 @@ enum Sheet: Identifiable, Hashable {
     case debt(Debt)
     case payoff(UUID)
     case subscription(Subscription)
+    case withdraw(UUID)
 
     var id: String {
         switch self {
@@ -16,6 +17,7 @@ enum Sheet: Identifiable, Hashable {
         case .debt(let d): "debt-\(d.id)"
         case .payoff(let id): "payoff-\(id)"
         case .subscription(let s): "subscription-\(s.id)"
+        case .withdraw(let id): "withdraw-\(id)"
         }
     }
 
@@ -28,13 +30,14 @@ enum Sheet: Identifiable, Hashable {
         case "debt": budget?.debts.first.map { .debt($0) }
         case "payoff": budget?.debts.first.map { .payoff($0.id) }
         case "subscription": budget?.subscriptions.first.map { .subscription($0) }
+        case "withdraw": budget?.envelopes.first.map { .withdraw($0.id) }
         default: nil
         }
     }
 }
 
 enum Section: String, CaseIterable, Identifiable {
-    case today, savings, debts, subscriptions
+    case today, savings, debts, subscriptions, stats
     var id: Self { self }
 }
 
@@ -92,13 +95,16 @@ final class BudgetStore {
     }
 
     /// The real amount of the payday on `date`; the plan is redone for it, done marks kept.
-    func setPay(_ amount: Decimal, payday date: Date) {
+    func setPay(_ amount: Decimal, leftover: Decimal?, payday date: Date) {
         guard var budget, let me else { return }
         var record = Planner(budget).payday(of: me, on: date) ?? Payday(member: me, date: date, actual: nil, allocations: [])
         record.actual = amount
+        record.leftover = leftover
         budget.upsert(record)
         let planner = Planner(budget)
-        budget.upsert(planner.confirm(planner.plan(for: me, on: date), actual: amount))
+        var confirmed = planner.confirm(planner.plan(for: me, on: date), actual: amount)
+        confirmed.leftover = leftover
+        budget.upsert(confirmed)
         self.budget = budget
     }
 
@@ -125,6 +131,10 @@ final class BudgetStore {
             budget.subscriptions.append(subscription)
         }
         self.budget = budget
+    }
+
+    func withdraw(_ amount: Decimal, from envelope: UUID, note: String) {
+        budget?.withdrawals.append(Withdrawal(envelope: envelope, amount: amount, note: note))
     }
 
     func deleteSubscription(_ id: UUID) {
@@ -170,11 +180,43 @@ extension Budget {
 
 /// A believable sample for screenshots and design checks.
 enum Demo {
+    /// 14 months of confirmed paydays: a sick-leave month, a bonus, skipped transfers, one withdrawal.
+    static func addHistory(to budget: inout Budget, member: UUID, before today: Date) {
+        let calendar = Calendar.current
+        var planner = Planner(budget)
+        let from = calendar.date(byAdding: .month, value: -14, to: today)!
+        let dates = planner.paydays(of: member, from: from, to: calendar.date(byAdding: .day, value: -1, to: today)!)
+            .dropLast() // the current period gets its own record
+        for (i, date) in dates.enumerated() {
+            let month = calendar.component(.month, from: date)
+            var pay = planner.expected(of: member, on: date)
+            if month == 3 { pay = pay * 72 / 100 }            // sick leave
+            if month == 12, i % 2 == 1 { pay += 60_000 }        // year-end bonus
+            pay += Decimal((i * 7_919) % 9_000) - 4_000         // shifts and overtime
+            budget.paydays.append(Payday(member: member, date: date, actual: pay, allocations: []))
+            planner = Planner(budget)
+            var record = planner.confirm(planner.plan(for: member, on: date), actual: pay)
+            budget.paydays.removeLast()
+            for j in record.allocations.indices {
+                let skip = (i % 5 == 3 && j % 3 == 1) || (month == 3 && j > 1)
+                record.allocations[j].isDone = !skip
+            }
+            record.leftover = Decimal((i * 3_571) % 6_000)
+            budget.paydays.append(record)
+            planner = Planner(budget)
+        }
+        if let vacation = budget.envelopes.first(where: { $0.name == "Vacation" }) {
+            budget.withdrawals.append(Withdrawal(envelope: vacation.id, date: calendar.date(byAdding: .month, value: -5, to: today)!,
+                                                 amount: 25_000, note: "Car repair"))
+        }
+    }
+
     static func budget() -> Budget {
         let me = Member(name: "Milana")
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         func day(_ offset: Int) -> Date { calendar.date(byAdding: .day, value: offset, to: today)! }
+        let started = calendar.date(byAdding: .month, value: -14, to: today)!
         let income = Income(member: me.id, name: "Salary", schedule: .monthly(days: [10, 25]), expected: 115_000)
         var budget = Budget(
             name: "Milana", currency: "RUB", members: [me], incomes: [income],
@@ -186,9 +228,13 @@ enum Demo {
             ],
             envelopes: [
                 Envelope(owner: .member(me.id), name: "Vacation", goal: .target(180_000, by: calendar.date(byAdding: .month, value: 8, to: today)!),
-                         priority: 0, opening: 64_000),
-                Envelope(owner: .member(me.id), name: "Emergency fund", goal: .percent(10), priority: 1, opening: 120_000),
-                Envelope(owner: .member(me.id), name: "Gifts", goal: .yearly(36_000), priority: 2, opening: 9_000),
+                         priority: 0, openedAt: started),
+                Envelope(owner: .member(me.id), name: "Emergency fund", goal: .percent(10), priority: 1, opening: 40_000, openedAt: started,
+                         holding: .savingsAccount, rate: 12, interestDay: 1),
+                Envelope(owner: .member(me.id), name: "Gifts", goal: .yearly(36_000), priority: 2, openedAt: started),
+                Envelope(owner: .member(me.id), name: "Deposit", goal: .open, priority: 3, opening: 300_000, openedAt: started,
+                         holding: .deposit, rate: 16, interestDay: 15, interestToCard: true,
+                         maturity: calendar.date(byAdding: .month, value: 4, to: today)!),
             ],
             debts: [
                 Debt(owner: .member(me.id), name: "Yandex Split", kind: .installment, original: 24_000, balance: 12_000,
@@ -209,6 +255,7 @@ enum Demo {
                 Subscription(owner: .member(me.id), name: "Gym", amount: 3_500, anchor: day(8), isActive: false, category: "Other"),
             ]
         )
+        addHistory(to: &budget, member: me.id, before: today)
         let planner = Planner(budget)
         if let start = planner.current(on: today, of: me.id) {
             var record = planner.confirm(planner.plan(for: me.id, on: start), actual: 115_000)

@@ -159,51 +159,6 @@ struct PlanList: View {
     }
 }
 
-struct SavingsGrid: View {
-    let planner: Planner
-    let today: Date
-
-    var body: some View {
-        let budget = planner.budget
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
-        let total = budget.envelopes.reduce(Decimal(0)) { $0 + planner.balance(of: $1, before: tomorrow) }
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Savings").font(.headline)
-                Spacer()
-                Text(total.money(budget.currency)).font(.title3.weight(.medium)).monospacedDigit()
-            }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
-                ForEach(budget.envelopes) { envelope in
-                    let balance = planner.balance(of: envelope, before: tomorrow)
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(envelope.name).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
-                        Text(balance.money(budget.currency))
-                            .font(.system(size: 26, weight: .medium, design: .rounded))
-                            .monospacedDigit()
-                        if case .target(let goal, _) = envelope.goal, goal > 0 {
-                            Bar(value: (balance / goal).double)
-                        }
-                        Text(caption(envelope, currency: budget.currency)).font(.caption).foregroundStyle(.secondary)
-                    }
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .card()
-                }
-            }
-        }
-    }
-
-    private func caption(_ envelope: Envelope, currency: String) -> String {
-        switch envelope.goal {
-        case .target(let goal, let by): "of \(goal.money(currency)) by \(by.formatted(.dateTime.month(.wide).year()))"
-        case .percent(let p): "\(p.formatted())% of each pay"
-        case .perPayday(let a): "\(a.money(currency)) each payday"
-        case .yearly(let a): "\(a.money(currency)) a year"
-        case .open: "From leftovers"
-        }
-    }
-}
-
 extension Target {
     var isEnvelope: Bool { if case .envelope = self { true } else { false } }
 

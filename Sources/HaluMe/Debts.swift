@@ -81,8 +81,9 @@ struct Stat: View {
                 .font(.system(size: big ? 40 : 22, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.5)
         }
+        .layoutPriority(big ? 1 : 0)
         .accessibilityElement(children: .combine)
     }
 }

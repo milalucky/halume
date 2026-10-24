@@ -37,18 +37,25 @@ struct SheetFrame<Content: View>: View {
 struct PaySheet: View {
     @Environment(BudgetStore.self) private var store
     @State private var amount: Decimal = 0
+    @State private var leftover: Decimal?
 
     var body: some View {
         let planner = store.planner, me = store.me
         let start = me.flatMap { planner?.current(on: Date(), of: $0) } ?? Date()
         SheetFrame(title: "Pay arrived",
                    subtitle: "The real amount of your \(start.formatted(.dateTime.day().month(.wide))) pay. The plan adjusts to it.",
-                   action: "Save", canSave: amount > 0, save: { store.setPay(amount, payday: start) }) {
-            Field("Amount") { AmountField(amount: $amount, currency: store.budget?.currency ?? "USD") }
+                   action: "Save", canSave: amount > 0, save: { store.setPay(amount, leftover: leftover, payday: start) }) {
+            let currency = store.budget?.currency ?? "USD"
+            Field("Amount") { AmountField(amount: $amount, currency: currency) }
+            Field("Left from your last pay", hint: "Optional. What was still on your card when this pay came. It shows in your stats whether you stayed within the plan.") {
+                TextField("Skip", value: $leftover, format: .currency(code: currency).presentation(.narrow).precision(.fractionLength(0)))
+                    .monospacedDigit()
+            }
         }
         .onAppear {
             guard let planner, let me else { return }
             amount = planner.payday(of: me, on: start)?.actual ?? planner.expected(of: me, on: start)
+            leftover = planner.payday(of: me, on: start)?.leftover
         }
     }
 }
