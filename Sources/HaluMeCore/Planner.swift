@@ -277,6 +277,11 @@ public struct Planner: Sendable {
         }
     }
 
+    /// Monthly due dates on `day` in [from, to].
+    public func dueDates(day: Int, from: Date, to: Date) -> [Date] {
+        monthDays([day], from: self.day(from), to: self.day(to))
+    }
+
     /// The next due day of a debt, today included.
     public func nextDue(of debt: Debt, from date: Date) -> Date {
         monthDays([debt.day], from: day(date), to: calendar.date(byAdding: .month, value: 1, to: day(date))!).first ?? day(date)

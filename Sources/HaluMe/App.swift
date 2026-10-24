@@ -26,6 +26,9 @@ struct HaluMeApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 760, height: 860)
+        Settings {
+            SettingsView().environment(store).tint(Palette.orange)
+        }
         .commands {
             CommandMenu("Budget") {
                 Button("Pay Arrived…") { store.sheet = .pay }

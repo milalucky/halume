@@ -45,7 +45,10 @@ enum Section: String, CaseIterable, Identifiable {
 @MainActor @Observable
 final class BudgetStore {
     var budget: Budget? {
-        didSet { save() }
+        didSet {
+            save()
+            syncReminders()
+        }
     }
 
     var sheet: Sheet?
@@ -144,6 +147,11 @@ final class BudgetStore {
     func startOver() {
         budget = nil
         if !isDemo { try? FileManager.default.removeItem(at: url) }
+    }
+
+    func syncReminders() {
+        guard !isDemo else { return }
+        Reminders.sync(budget)
     }
 
     private func save() {

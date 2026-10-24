@@ -290,3 +290,15 @@
 "Anna" = "Анна";
 "Gym" = "Спортзал";
 "Car repair" = "Ремонт машины";
+
+/* Settings and reminders */
+"Reminders" = "Напоминания";
+"On payday" = "В день зарплаты";
+"The day before bills and debt payments" = "За день до платежей и выплат по долгам";
+"Before subscription charges and when a free trial ends" = "Перед списаниями подписок и концом пробного периода";
+"Notifications are off for HaluMe. Turn them on in System Settings → Notifications." = "Уведомления для HaluMe выключены. Включите их в Системных настройках → Уведомления.";
+"Enter what came and tick off bills and savings. It takes a minute." = "Введите, сколько пришло, и отметьте платежи и накопления. Это займёт минуту.";
+"Due tomorrow: %@" = "Завтра платёж: %@";
+"Payment due tomorrow: %@" = "Завтра платёж по долгу: %@";
+"Free trial ends %@. Cancel now if you don't need it." = "Пробный период закончится %@. Отмените сейчас, если подписка не нужна.";
+"Charge tomorrow: %@" = "Завтра списание: %@";
