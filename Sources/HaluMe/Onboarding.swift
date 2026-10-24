@@ -324,6 +324,10 @@ private struct PreviewStep: View {
             Hero(allowance: allowance, start: start, currency: budget.currency, note: nil)
             PlanList(plan: planner.plan(for: me, on: start), record: nil, currency: budget.currency, toggle: nil)
         }
+        Label("Debts, subscriptions and savings accounts are in the sidebar. Add them any time and the plan updates.",
+              systemImage: "sidebar.left")
+            .font(.callout)
+            .foregroundStyle(.secondary)
     }
 }
 
