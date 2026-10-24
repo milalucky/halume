@@ -7,6 +7,7 @@ let package = Package(
     products: [.library(name: "HaluMoneyCore", targets: ["HaluMoneyCore"])],
     targets: [
         .target(name: "HaluMoneyCore"),
+        .executableTarget(name: "HaluMoney", dependencies: ["HaluMoneyCore"]),
         // XCTest and Swift Testing need full Xcode; checks run as `swift run money-check`.
         .executableTarget(name: "money-check", dependencies: ["HaluMoneyCore"], path: "Checks"),
     ]
