@@ -198,7 +198,7 @@ struct DebtEditor: View {
                 Field(LocalizedStringKey(debt.kind == .personal ? "Paying back" : "Each month")) { AmountField(amount: $debt.payment, currency: currency) }
             }
             HStack(alignment: .top, spacing: 12) {
-                Field("Due day") { DayPicker(day: $debt.day) }.frame(width: 100)
+                Field("Due day") { DayPicker(day: $debt.day) }.frame(width: 100, alignment: .leading)
                 if debt.kind.hasInterest {
                     Field("Interest a year, %") { TextField("0", value: $debt.rate, format: .number) }
                 }
@@ -279,7 +279,7 @@ struct PayoffSheet: View {
                         }
                         Slider(value: $extra, in: 0...max(debt.payment * 2, 1_000).double)
                     }
-                    Field("Or pay once now") { AmountField(amount: $once, currency: currency) }.frame(width: 200)
+                    Field("Or pay once now") { AmountField(amount: $once, currency: currency) }.frame(width: 200, alignment: .leading)
                     if let now, let then, more > 0 || once > 0 {
                         let months = now.months - then.months
                         let saved = now.interest - then.interest
@@ -316,7 +316,7 @@ struct PayoffSheet: View {
                 }
             }
             .padding(28)
-            .frame(width: 520)
+            .frame(width: 520, alignment: .leading)
         }
     }
 

@@ -95,7 +95,7 @@ private struct SubscriptionRow: View {
                     Text(sub.name).foregroundStyle(sub.isActive ? .primary : .secondary)
                     Group {
                         if !sub.isActive {
-                            Text("Cancelled")
+                            Text("Was cancelled")
                         } else if trialSoon, let ends = sub.trialEnds {
                             Text("Free trial ends \(ends.relativeDay)").foregroundStyle(Palette.orange)
                         } else if let next {

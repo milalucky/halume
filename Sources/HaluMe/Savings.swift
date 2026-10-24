@@ -158,10 +158,10 @@ struct HoldingFields: View {
                 }
                 .labelsHidden()
             }
-            .frame(width: 170)
+            .frame(width: 170, alignment: .leading)
             if envelope.holding.earnsInterest {
-                Field("Rate, % a year") { TextField("12", value: $envelope.rate, format: .number) }.frame(width: 100)
-                Field("Paid on day") { DayPicker(day: $envelope.interestDay) }.frame(width: 90)
+                Field("Rate, % a year") { TextField("12", value: $envelope.rate, format: .number) }.frame(width: 100, alignment: .leading)
+                Field("Paid on day") { DayPicker(day: $envelope.interestDay) }.frame(width: 90, alignment: .leading)
                 if envelope.holding == .deposit {
                     Field("Ends") {
                         DatePicker("Ends", selection: Binding(get: { envelope.maturity ?? Date() }, set: { envelope.maturity = $0 }),

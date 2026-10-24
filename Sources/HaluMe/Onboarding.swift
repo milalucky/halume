@@ -239,9 +239,9 @@ struct BillsEditor: View {
                     HStack(alignment: .bottom, spacing: 12) {
                         Field("Bill") { TextField("Name", text: $bill.name) }
                         Field("Amount") { AmountField(amount: $bill.amount, currency: currency) }
-                            .frame(width: 130)
+                            .frame(width: 130, alignment: .leading)
                         Field("Due day") { DayPicker(day: $bill.day) }
-                            .frame(width: 84)
+                            .frame(width: 84, alignment: .leading)
                         RemoveButton { bills.removeAll { $0.id == bill.id } }
                     }
                 }
@@ -275,17 +275,17 @@ struct SavingsEditor: View {
                         }
                         .labelsHidden()
                     }
-                    .frame(width: 170)
+                    .frame(width: 170, alignment: .leading)
                     RemoveButton { envelopes.removeAll { $0.id == envelope.id } }
                 }
                 HStack(alignment: .top, spacing: 12) {
                     if envelope.kind == .percent {
                         Field("Percent of each pay") {
-                            TextField("10", value: $envelope.value, format: .number).frame(width: 90)
+                            TextField("10", value: $envelope.value, format: .number).frame(width: 90, alignment: .leading)
                         }
                     } else {
                         Field(envelope.kind.amountLabel) { AmountField(amount: $envelope.value, currency: currency) }
-                            .frame(width: 170)
+                            .frame(width: 170, alignment: .leading)
                     }
                     if envelope.kind == .target {
                         Field("By") {
@@ -294,7 +294,7 @@ struct SavingsEditor: View {
                         }
                     }
                     Field("Already saved") { AmountField(amount: $envelope.opening, currency: currency) }
-                        .frame(width: 150)
+                        .frame(width: 150, alignment: .leading)
                     Spacer(minLength: 0)
                 }
                 HoldingFields(envelope: $envelope)
