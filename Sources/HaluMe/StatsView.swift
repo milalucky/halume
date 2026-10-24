@@ -96,7 +96,7 @@ private struct Totals: View {
     var body: some View {
         let planned = total.savingPlanned + total.debtPlanned
         let done = total.saved + total.debtPaid
-        HStack(alignment: .top, spacing: 28) {
+        StatRow {
             Stat(label: "Earned", value: total.income.money(currency), big: true)
             Stat(label: "Saved", value: (total.saved - total.withdrawn).money(currency))
             Stat(label: "Debts paid", value: total.debtPaid.money(currency))

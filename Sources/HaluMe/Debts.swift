@@ -59,7 +59,7 @@ private struct Summary: View {
         let left = debts.reduce(Decimal(0)) { $0 + planner.remaining(of: $1, before: tomorrow(today)) }
         let monthly = debts.reduce(Decimal(0)) { $0 + $1.payment }
         let free = debts.compactMap { planner.payoff(balance: planner.remaining(of: $0, before: tomorrow(today)), rate: $0.rate, payment: $0.payment, from: planner.nextDue(of: $0, from: today))?.date }.max()
-        HStack(alignment: .top, spacing: 32) {
+        StatRow {
             Stat(label: "Left to pay", value: left.money(currency), big: true)
             Stat(label: "Each month", value: monthly.money(currency))
             if let free {
@@ -76,15 +76,27 @@ struct Stat: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.subheadline).foregroundStyle(.secondary)
+            Text(label).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             Text(value)
                 .font(.system(size: big ? 40 : 22, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
         }
-        .layoutPriority(big ? 1 : 0)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Big numbers in a row when they fit, otherwise two per line.
+struct StatRow<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 32) { content }.fixedSize(horizontal: true, vertical: false)
+            LazyVGrid(columns: [GridItem(.flexible(), alignment: .topLeading), GridItem(.flexible(), alignment: .topLeading)],
+                      alignment: .leading, spacing: 18) { content }
+        }
     }
 }
 
@@ -261,7 +273,7 @@ struct PayoffSheet: View {
                     Spacer()
                     Button("Edit…") { store.sheet = .debt(debt) }.buttonStyle(SecondaryButtonStyle())
                 }
-                HStack(alignment: .top, spacing: 28) {
+                StatRow {
                     Stat(label: "Left", value: left.money(currency), big: true)
                     if let now {
                         Stat(label: "Paid off in", value: now.date.formatted(.dateTime.month(.wide).year()))

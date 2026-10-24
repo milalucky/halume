@@ -32,7 +32,7 @@ private struct SavingsSummary: View {
         let budget = planner.budget
         let total = budget.envelopes.reduce(Decimal(0)) { $0 + planner.balance(of: $1, before: tomorrow(today)) }
         let monthly = budget.envelopes.compactMap { planner.nextInterest(of: $0, from: today)?.amount }.reduce(0, +)
-        HStack(alignment: .top, spacing: 32) {
+        StatRow {
             Stat(label: "Saved", value: total.money(budget.currency), big: true)
             if monthly > 0 {
                 Stat(label: "Interest a month", value: "+" + monthly.money(budget.currency))

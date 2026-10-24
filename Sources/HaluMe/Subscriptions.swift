@@ -62,7 +62,7 @@ private struct Totals: View {
         let monthly = active.reduce(Decimal(0)) { $0 + Planner.monthlyCost(of: $1) }
         let yearly = monthly * 12
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 32) {
+            StatRow {
                 Stat(label: "A month", value: monthly.rounded().money(budget.currency), big: true)
                 Stat(label: "A year", value: yearly.rounded().money(budget.currency))
                 Stat(label: "Active", value: "\(active.count)")
