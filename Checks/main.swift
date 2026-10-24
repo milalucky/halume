@@ -1,5 +1,5 @@
 import Foundation
-import HaluMoneyCore
+import HaluMeCore
 
 var calendar = Calendar(identifier: .gregorian)
 calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -97,6 +97,54 @@ budget.checks = [BalanceCheck(member: me.id, date: d(2026, 10, 30), amount: 70_0
 planner = Planner(budget, calendar: calendar)
 let unpaid = record.allocations.filter { !$0.isDone && $0.target != .free }.reduce(0) { $0 + $1.amount }
 check(planner.allowance(for: me.id, on: d(2026, 10, 31))!.perDay == ((70_000 - unpaid) / 11).rounded(), "per day from balance")
+
+// Debts: 120 000 at 12% with 10 000 a month → 13 months; 0% split → exact months.
+let loan = Debt(owner: .member(me.id), name: "Car", kind: .loan, balance: 120_000, rate: 12, payment: 10_000, day: 15)
+let car = planner.payoff(balance: 120_000, rate: 12, payment: 10_000, from: d(2026, 11, 15))!
+check(car.months == 13 && car.interest > 7_000 && car.interest < 9_000, "loan payoff (\(car.months) months, \(car.interest))")
+let faster = planner.payoff(balance: 120_000, rate: 12, payment: 15_000, from: d(2026, 11, 15))!
+check(faster.months == 9 && faster.interest < car.interest, "paying more is faster and cheaper")
+check(planner.payoff(balance: 100_000, rate: 24, payment: 1_000, from: d(2026, 11, 15)) == nil, "payment below interest never ends")
+check(planner.payoff(balance: 12_000, rate: 0, payment: 3_000, from: d(2026, 11, 15))?.months == 4, "split in 4")
+
+let split = Debt(owner: .member(me.id), name: "Split", kind: .installment, balance: 9_000, asOf: d(2026, 10, 1), payment: 3_000, day: 28)
+var withDebts = budget
+withDebts.debts = [loan, split]
+withDebts.paydays = []
+var dp = Planner(withDebts, calendar: calendar)
+let debtPlan = dp.plan(for: me.id, on: d(2026, 10, 23))
+check(debtPlan.lines.contains { $0.target == .debt(split.id) && $0.amount == 3_000 }, "split payment on the 28th in this period")
+check(!debtPlan.lines.contains { $0.target == .debt(loan.id) }, "loan on the 15th is next period")
+var paid = dp.confirm(debtPlan, actual: 80_000)
+paid.allocations = paid.allocations.map { a in var a = a; if a.target == .debt(split.id) { a.isDone = true }; return a }
+withDebts.paydays = [paid]
+dp = Planner(withDebts, calendar: calendar)
+check(dp.remaining(of: split, before: d(2026, 11, 10)) == 6_000, "split left after a payment")
+withDebts.debts[1].balance = 5_000  // 3 000 already paid → 2 000 left
+dp = Planner(withDebts, calendar: calendar)
+check(dp.plan(for: me.id, on: d(2026, 11, 25)).lines.contains { $0.target == .debt(split.id) && $0.amount == 2_000 },
+      "last payment is only what's left")
+
+// Subscriptions: monthly on the 3rd, yearly in March, trial until Nov 20.
+let music = Subscription(owner: .member(me.id), name: "Music", amount: 299, anchor: d(2025, 1, 3))
+let cloud = Subscription(owner: .member(me.id), name: "Cloud", amount: 1_490, cycle: .yearly, anchor: d(2025, 3, 14))
+let trial = Subscription(owner: .member(me.id), name: "Movies", amount: 499, anchor: d(2026, 10, 20), trialEnds: d(2026, 11, 20))
+check(planner.charges(of: music, from: d(2026, 10, 23), to: d(2026, 11, 9)) == [d(2026, 11, 3)], "monthly charge in period")
+check(planner.charges(of: cloud, from: d(2026, 10, 1), to: d(2027, 3, 31)) == [d(2027, 3, 14)], "yearly charge")
+check(planner.charges(of: trial, from: d(2026, 10, 23), to: d(2026, 11, 19)).isEmpty, "nothing during the trial")
+check(planner.nextCharge(of: trial, after: d(2026, 10, 25)) == d(2026, 11, 20), "first charge when the trial ends")
+let monthEnd = Subscription(owner: .member(me.id), name: "x", amount: 1, anchor: d(2026, 1, 31))
+check(planner.charges(of: monthEnd, from: d(2026, 2, 1), to: d(2026, 3, 31)) == [d(2026, 2, 28), d(2026, 3, 31)], "month-end anchor")
+check(Planner.monthlyCost(of: cloud) == Decimal(1_490) / 12, "yearly cost per month")
+var withSubs = budget
+withSubs.subscriptions = [music, cloud, trial]
+withSubs.paydays = []
+check(Planner(withSubs, calendar: calendar).plan(for: me.id, on: d(2026, 10, 23)).lines.contains { $0.target == .subscription(music.id) && $0.amount == 299 },
+      "subscription in the plan")
+
+// Old files without the newer lists still load.
+let old = #"{"id":"\#(UUID())","name":"Old","currency":"RUB","members":[]}"#
+check((try? JSONDecoder().decode(Budget.self, from: Data(old.utf8)))?.debts.isEmpty == true, "older budget file decodes")
 
 // Round trip.
 let data = try JSONEncoder().encode(budget)

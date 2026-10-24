@@ -1,4 +1,4 @@
-import HaluMoneyCore
+import HaluMeCore
 import SwiftUI
 
 struct HomeView: View {

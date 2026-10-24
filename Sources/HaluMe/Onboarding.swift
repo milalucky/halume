@@ -1,4 +1,4 @@
-import HaluMoneyCore
+import HaluMeCore
 import SwiftUI
 
 /// First run: welcome → pay → bills → savings → a preview of the first plan.
@@ -158,7 +158,7 @@ private struct WelcomeStep: View {
 
     var body: some View {
         StepTitle("Plan each paycheck,\nnot each coffee",
-                  "When pay arrives, Halu Money splits it: bills first, then savings. The rest is yours to spend — no expense logging.")
+                  "When pay arrives, HaluMe splits it: bills first, then savings. The rest is yours to spend — no expense logging.")
         VStack(alignment: .leading, spacing: 16) {
             Point(icon: "calendar", title: "Knows your paydays", text: "Bills are matched to the pay that comes before them.")
             Point(icon: "checklist", title: "Tells you what to move", text: "A short checklist each payday, then nothing to do.")

@@ -135,7 +135,7 @@ struct Brand: View {
     var body: some View {
         HStack(spacing: 8) {
             HaluMark(size: 18)
-            Text("Halu Money").font(.headline)
+            Text("HaluMe").font(.headline)
         }
     }
 }

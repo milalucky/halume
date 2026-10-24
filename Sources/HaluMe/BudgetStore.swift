@@ -1,5 +1,5 @@
 import Foundation
-import HaluMoneyCore
+import HaluMeCore
 import Observation
 
 enum Sheet: String, Identifiable {
@@ -7,7 +7,7 @@ enum Sheet: String, Identifiable {
     var id: Self { self }
 }
 
-/// The budget on disk: Application Support/Halu Money/budget.json.
+/// The budget on disk: Application Support/HaluMe/budget.json.
 @MainActor @Observable
 final class BudgetStore {
     var budget: Budget? {
@@ -23,7 +23,7 @@ final class BudgetStore {
     private let url: URL
 
     init() {
-        let dir = URL.applicationSupportDirectory.appending(path: "Halu Money", directoryHint: .isDirectory)
+        let dir = URL.applicationSupportDirectory.appending(path: "HaluMe", directoryHint: .isDirectory)
         url = dir.appending(path: "budget.json")
         if isDemo {
             // `--demo --step N` shows onboarding step N with demo answers.
@@ -86,7 +86,7 @@ final class BudgetStore {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(budget).write(to: url, options: .atomic)
         } catch {
-            NSLog("Halu Money: could not save the budget: \(error)")
+            NSLog("HaluMe: could not save the budget: \(error)")
         }
     }
 }

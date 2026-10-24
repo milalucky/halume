@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.milana.halu.money</string>
+    <string>com.milana.halume</string>
     <key>CFBundleName</key>
-    <string>Halu Money</string>
+    <string>HaluMe</string>
     <key>CFBundleDisplayName</key>
-    <string>Halu Money</string>
+    <string>HaluMe</string>
     <key>CFBundleExecutable</key>
-    <string>HaluMoney</string>
+    <string>HaluMe</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>

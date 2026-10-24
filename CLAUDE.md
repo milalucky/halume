@@ -1,4 +1,4 @@
-# Halu Money — paycheck planner
+# HaluMe — paycheck planner
 
 Brand: Halu (same as the Halu notch app). Swift Package, no dependencies. Mac app first, then iPhone, Apple Watch, and a glance in Halu's notch. Built for anyone (aim: a million users), not for one household.
 
@@ -26,7 +26,7 @@ One model for a single person, a fully shared budget, or a partly shared one (sh
 
 ## Code
 
-- `HaluMoneyCore`: Codable models (`Model.swift`) and the pure calculation engine (`Planner.swift`). No UI, no storage. Shared by every platform.
+- `HaluMeCore`: Codable models (`Model.swift`) and the pure calculation engine (`Planner.swift`). No UI, no storage. Shared by every platform.
 - `swift run money-check`: assert-based checks of the engine. Run after every engine change.
 - Sync later via CloudKit (private DB for personal, shared zone + CKShare for the household). Needs the paid Apple Developer account, bought when something is ready to ship. Keep every model Codable with UUID ids.
 

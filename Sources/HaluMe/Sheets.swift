@@ -1,4 +1,4 @@
-import HaluMoneyCore
+import HaluMeCore
 import SwiftUI
 
 /// A small modal with a title, content and Cancel / main action.
@@ -59,7 +59,7 @@ struct BalanceSheet: View {
 
     var body: some View {
         SheetFrame(title: "Check your balance",
-                   subtitle: "What's on your card right now? Halu Money takes off what you still have to pay or put aside, and spreads the rest over the days left.",
+                   subtitle: "What's on your card right now? HaluMe takes off what you still have to pay or put aside, and spreads the rest over the days left.",
                    action: "Update", save: { store.checkBalance(amount) }) {
             Field("Balance") { AmountField(amount: $amount, currency: store.budget?.currency ?? "USD") }
         }

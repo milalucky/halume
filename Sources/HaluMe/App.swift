@@ -2,11 +2,11 @@ import AppKit
 import SwiftUI
 
 @main
-struct HaluMoneyApp: App {
+struct HaluMeApp: App {
     @State private var store = BudgetStore()
 
     var body: some Scene {
-        WindowGroup("Halu Money") {
+        Window("HaluMe", id: "main") {
             Group {
                 if store.budget == nil {
                     OnboardingView()
