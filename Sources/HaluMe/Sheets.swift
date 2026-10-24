@@ -98,6 +98,7 @@ struct PlanEditor: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding([.horizontal, .top], 28)
             .padding(.bottom, 16)
 

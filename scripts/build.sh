@@ -11,7 +11,6 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/HaluMe" "$APP/Contents/MacOS/HaluMe"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
-# shortcut: Halu's icon as a placeholder until HaluMe has its own.
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp -R Resources/en.lproj Resources/ru.lproj "$APP/Contents/Resources/"
 codesign --force --sign - "$APP"
