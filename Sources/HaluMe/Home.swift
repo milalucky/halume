@@ -1,73 +1,6 @@
 import HaluMeCore
 import SwiftUI
 
-struct HomeView: View {
-    @Environment(BudgetStore.self) private var store
-
-    var body: some View {
-        @Bindable var store = store
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                HStack {
-                    Brand()
-                    Spacer()
-                    IconButton(icon: "creditcard", label: "Check balance") { store.sheet = .balance }
-                    IconButton(icon: "slider.horizontal.3", label: "Edit plan") { store.sheet = .plan }
-                }
-                if let budget = store.budget, let me = store.me, let planner = store.planner {
-                    content(budget: budget, me: me, planner: planner)
-                }
-            }
-            .frame(maxWidth: 640, alignment: .leading)
-            .padding(.horizontal, 40)
-            .padding(.top, 44)
-            .padding(.bottom, 40)
-            .frame(maxWidth: .infinity)
-        }
-        .sheet(item: $store.sheet) { sheet in
-            switch sheet {
-            case .pay: PaySheet()
-            case .balance: BalanceSheet()
-            case .plan: PlanEditor()
-            }
-        }
-        .confirmationDialog("Start over?", isPresented: $store.confirmingStartOver) {
-            Button("Delete Budget and Start Over", role: .destructive) { store.startOver() }
-        } message: {
-            Text("Your plan, savings and history will be deleted. This can't be undone.")
-        }
-    }
-
-    @ViewBuilder
-    private func content(budget: Budget, me: UUID, planner: Planner) -> some View {
-        let today = Date()
-        if let allowance = planner.allowance(for: me, on: today), let start = planner.current(on: today, of: me) {
-            let record = planner.payday(of: me, on: start)
-            Hero(allowance: allowance, start: start, currency: budget.currency,
-                 note: balanceNote(budget: budget, me: me, start: start))
-            if record?.actual == nil {
-                PayBanner(expected: planner.expected(of: me, on: start), date: start, currency: budget.currency) {
-                    store.sheet = .pay
-                }
-            }
-            PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency) {
-                store.toggle($0, payday: start)
-            }
-        } else {
-            Text("Your first payday hasn't come yet.").foregroundStyle(.secondary).card()
-        }
-        if !budget.envelopes.isEmpty {
-            Envelopes(planner: planner, today: today)
-        }
-    }
-
-    private func balanceNote(budget: Budget, me: UUID, start: Date) -> String? {
-        guard let check = budget.checks.filter({ $0.member == me && $0.date >= start }).max(by: { $0.date < $1.date })
-        else { return nil }
-        return "From your balance of \(check.amount.money(budget.currency)), \(check.date.formatted(.relative(presentation: .named)))"
-    }
-}
-
 /// The main number: about how much can be spent a day until payday.
 struct Hero: View {
     let allowance: Allowance
@@ -106,7 +39,7 @@ struct Hero: View {
     }
 }
 
-private struct PayBanner: View {
+struct PayBanner: View {
     let expected: Decimal
     let date: Date
     let currency: String
@@ -195,13 +128,13 @@ struct PlanList: View {
                     .foregroundStyle(done ? AnyShapeStyle(Palette.green) : AnyShapeStyle(.tertiary))
                     .frame(width: 24)
             } else {
-                Image(systemName: line.target.isBill ? "doc.text" : "arrow.down.to.line")
+                Image(systemName: line.target.icon)
                     .foregroundStyle(.secondary)
                     .frame(width: 24)
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(line.name).strikethrough(done, color: .secondary).foregroundStyle(done ? .secondary : .primary)
-                Text(line.target.isBill ? "Bill" : "Savings").font(.caption).foregroundStyle(.tertiary)
+                Text(line.target.kind).font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 1) {
@@ -219,14 +152,14 @@ struct PlanList: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(line.name), \(line.amount.money(currency))")
                 .accessibilityValue(done ? "Done" : "Not done")
-                .help(done ? "Mark as not done" : line.target.isBill ? "Mark as paid" : "Mark as moved to savings")
+                .help(done ? "Mark as not done" : line.target.isEnvelope ? "Mark as moved to savings" : "Mark as paid")
         } else {
             content
         }
     }
 }
 
-private struct Envelopes: View {
+struct SavingsGrid: View {
     let planner: Planner
     let today: Date
 
@@ -272,5 +205,25 @@ private struct Envelopes: View {
 }
 
 extension Target {
-    var isBill: Bool { if case .bill = self { true } else { false } }
+    var isEnvelope: Bool { if case .envelope = self { true } else { false } }
+
+    var kind: LocalizedStringKey {
+        switch self {
+        case .bill: "Bill"
+        case .envelope: "Savings"
+        case .debt: "Debt payment"
+        case .subscription: "Subscription"
+        case .free: "Yours to spend"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .bill: "doc.text"
+        case .envelope: "arrow.down.to.line"
+        case .debt: "creditcard"
+        case .subscription: "repeat"
+        case .free: "sun.max"
+        }
+    }
 }

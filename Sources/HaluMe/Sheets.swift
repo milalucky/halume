@@ -2,7 +2,7 @@ import HaluMeCore
 import SwiftUI
 
 /// A small modal with a title, content and Cancel / main action.
-private struct SheetFrame<Content: View>: View {
+struct SheetFrame<Content: View>: View {
     let title: String
     let subtitle: String
     let action: String

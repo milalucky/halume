@@ -246,6 +246,11 @@ public struct Planner: Sendable {
         }
     }
 
+    /// The next due day of a debt, today included.
+    public func nextDue(of debt: Debt, from date: Date) -> Date {
+        monthDays([debt.day], from: day(date), to: calendar.date(byAdding: .month, value: 1, to: day(date))!).first ?? day(date)
+    }
+
     // MARK: Subscriptions
 
     /// Charge dates of an active subscription in [from, to], none before the trial ends.

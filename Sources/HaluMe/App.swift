@@ -11,7 +11,7 @@ struct HaluMeApp: App {
                 if store.budget == nil {
                     OnboardingView()
                 } else {
-                    HomeView()
+                    MainView()
                 }
             }
             .environment(store)
@@ -36,6 +36,13 @@ struct HaluMeApp: App {
                     .keyboardShortcut("e")
                 Divider()
                 Button("Start Over…") { store.confirmingStartOver = true }
+            }
+            CommandGroup(before: .sidebar) {
+                ForEach(Array(Section.allCases.enumerated()), id: \.element) { i, section in
+                    Button(section.title) { store.section = section }
+                        .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")))
+                }
+                Divider()
             }
         }
     }
