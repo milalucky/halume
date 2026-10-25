@@ -327,3 +327,5 @@
 "From" = "Откуда";
 "%@ there now" = "Сейчас там %@";
 "That's more than there is." = "Это больше, чем там есть.";
+"This week, from %@" = "Эта неделя, с %@";
+"New week tomorrow" = "Новая неделя завтра";

@@ -206,7 +206,7 @@ struct WithdrawSheet: View {
             if amount > balance {
                 Text("That's more than there is.").font(.callout).foregroundStyle(Palette.red)
             }
-            Field("What for", hint: "Optional") { TextField("e.g. Car repair", text: $note) }
+            Field("What for", hint: "Optional") { BoxTextField("e.g. Car repair", text: $note) }
         }
     }
 }

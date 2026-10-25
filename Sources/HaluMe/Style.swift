@@ -155,9 +155,35 @@ struct Field<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
-            content.textFieldStyle(.roundedBorder).controlSize(.large)
+            content.controlSize(.large)
             if let hint { Text(hint).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
+    }
+}
+
+/// The app's text field: a soft box with an orange ring while typing (amounts and dates match it).
+struct BoxTextField: View {
+    let placeholder: LocalizedStringKey
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    init(_ placeholder: LocalizedStringKey, text: Binding<String>) {
+        self.placeholder = placeholder
+        _text = text
+    }
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .focused($focused)
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.background.opacity(0.6)))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(focused ? AnyShapeStyle(Palette.orange.opacity(0.7)) : AnyShapeStyle(.primary.opacity(0.12)),
+                              lineWidth: focused ? 1.5 : 1))
+            .contentShape(Rectangle())
+            .onTapGesture { focused = true }
     }
 }
 
@@ -209,13 +235,21 @@ private struct NumberText: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField(placeholder, text: $text)
-            .focused($focused)
-            .monospacedDigit()
-            .padding(.trailing, 18)
-            .overlay(alignment: .trailing) {
-                Text(suffix).foregroundStyle(.secondary).padding(.trailing, 8).allowsHitTesting(false)
-            }
+        HStack(spacing: 6) {
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .monospacedDigit()
+            Text(suffix).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.background.opacity(0.6)))
+        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .strokeBorder(focused ? AnyShapeStyle(Palette.orange.opacity(0.7)) : AnyShapeStyle(.primary.opacity(0.12)),
+                          lineWidth: focused ? 1.5 : 1))
+        .contentShape(Rectangle())
+        .onTapGesture { focused = true }
             .onAppear { text = Self.display(value) }
             .onChange(of: text) { _, new in
                 let parsed = Amount.parse(new)
@@ -379,8 +413,7 @@ struct CurrencyField: View {
         .accessibilityValue(Text(Self.title(code)))
         .popover(isPresented: $open, arrowEdge: .bottom) {
             VStack(spacing: 8) {
-                TextField("Search currency", text: $query)
-                    .textFieldStyle(.roundedBorder)
+                BoxTextField("Search currency", text: $query)
                 List(matches, id: \.self) { item in
                     Button { code = item; open = false; query = "" } label: {
                         HStack {

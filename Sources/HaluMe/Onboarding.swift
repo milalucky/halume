@@ -197,7 +197,7 @@ private struct WelcomeStep: View {
         }
         .card(padding: 20)
         HStack(alignment: .top, spacing: 16) {
-            Field("Your name") { TextField("Optional", text: $draft.name) }
+            Field("Your name") { BoxTextField("Optional", text: $draft.name) }
             Field("Currency") {
                 CurrencyField(code: $draft.currency)
             }
@@ -299,7 +299,7 @@ struct BillsEditor: View {
             VStack(spacing: 14) {
                 ForEach($bills) { $bill in
                     HStack(alignment: .bottom, spacing: 12) {
-                        Field("Bill") { TextField("Name", text: $bill.name) }
+                        Field("Bill") { BoxTextField("Name", text: $bill.name) }
                         Field("Amount") { AmountField(amount: $bill.amount, currency: currency) }
                             .frame(width: 130, alignment: .leading)
                         Field("Due day") { DayPicker(day: $bill.day) }
@@ -330,7 +330,7 @@ struct SavingsEditor: View {
         ForEach($envelopes) { $envelope in
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .bottom, spacing: 12) {
-                    Field("Name") { TextField("Name", text: $envelope.name) }
+                    Field("Name") { BoxTextField("Name", text: $envelope.name) }
                     Field("How") {
                         Picker("How", selection: $envelope.kind) {
                             ForEach(GoalKind.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
@@ -382,8 +382,8 @@ private struct PreviewStep: View {
         let me = budget.members[0].id
         StepTitle("Here's your plan", "This is how your current paycheck splits. You can change any of it later.")
         if let allowance = planner.allowance(for: me, on: Date()), let start = planner.current(on: Date(), of: me) {
-            Hero(allowance: allowance, start: start, currency: budget.currency, note: nil)
-            PlanList(plan: planner.plan(for: me, on: start), record: nil, currency: budget.currency, toggle: nil)
+            Hero(allowance: allowance, start: start, currency: budget.currency, note: nil, weekly: budget.plansByWeek)
+            PlanList(plan: planner.plan(for: me, on: start), record: nil, currency: budget.currency, weekly: budget.plansByWeek, toggle: nil)
         }
         Label("Debts, subscriptions and savings accounts are in the sidebar. Add them any time and the plan updates.",
               systemImage: "sidebar.left")

@@ -140,13 +140,13 @@ struct TodayPage: View {
                 if let allowance = planner.allowance(for: me, on: today), let start = planner.current(on: today, of: me) {
                     let record = planner.payday(of: me, on: start)
                     Hero(allowance: allowance, start: start, currency: budget.currency,
-                         note: balanceNote(budget: budget, me: me, start: start))
+                         note: balanceNote(budget: budget, me: me, start: start), weekly: budget.plansByWeek)
                     if record?.actual == nil {
                         PayBanner(expected: planner.expected(of: me, on: start), date: start, currency: budget.currency) {
                             store.sheet = .pay
                         }
                     }
-                    PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency) {
+                    PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency, weekly: budget.plansByWeek) {
                         store.toggle($0, payday: start)
                     }
                     ComingUp(planner: planner, today: today)

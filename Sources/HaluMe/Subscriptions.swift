@@ -175,7 +175,7 @@ struct SubscriptionEditor: View {
                    action: LocalizedStringKey(isNew ? "Add" : "Save"),
                    canSave: !subscription.name.trimmingCharacters(in: .whitespaces).isEmpty && subscription.amount > 0,
                    save: save) {
-            Field("Name") { TextField("e.g. Music", text: $subscription.name) }
+            Field("Name") { BoxTextField("e.g. Music", text: $subscription.name) }
             if isNew, subscription.name.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(suggestions, id: \.self) { name in

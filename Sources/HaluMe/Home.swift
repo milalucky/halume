@@ -7,6 +7,7 @@ struct Hero: View {
     let start: Date
     let currency: String
     let note: String?
+    var weekly = false
 
     var body: some View {
         let total = max(1, Calendar.current.dateComponents([.day], from: start, to: allowance.next).day ?? 1)
@@ -35,6 +36,9 @@ struct Hero: View {
 
     private var payday: String {
         let date = allowance.next.formatted(.dateTime.day().month(.wide))
+        if weekly {
+            return allowance.daysLeft == 1 ? String(localized: "New week tomorrow") : String(localized: "\(allowance.daysLeft) days left this week")
+        }
         return allowance.daysLeft == 1 ? String(localized: "Payday tomorrow, \(date)") : String(localized: "Payday in \(allowance.daysLeft) days, \(date)")
     }
 }
@@ -70,6 +74,7 @@ struct PlanList: View {
     let plan: Plan
     let record: Payday?
     let currency: String
+    var weekly = false
     /// nil shows the list read-only.
     let toggle: ((Target) -> Void)?
 
@@ -78,7 +83,9 @@ struct PlanList: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("From your \(plan.date.formatted(.dateTime.day().month(.wide))) pay").font(.headline)
+                    Text(weekly ? String(localized: "This week, from \(plan.date.formatted(.dateTime.day().month(.wide)))")
+                                : String(localized: "From your \(plan.date.formatted(.dateTime.day().month(.wide))) pay"))
+                        .font(.headline)
                     if toggle != nil, !plan.lines.isEmpty {
                         Text(done == plan.lines.count ? String(localized: "All done") : String(localized: "\(done) of \(plan.lines.count) done"))
                             .font(.callout).foregroundStyle(.secondary)

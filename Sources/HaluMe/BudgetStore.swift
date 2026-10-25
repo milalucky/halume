@@ -169,6 +169,11 @@ final class BudgetStore {
 }
 
 extension Budget {
+    /// Daily pay is planned week by week.
+    var plansByWeek: Bool {
+        if case .daily = incomes.first?.schedule { true } else { false }
+    }
+
     func name(of target: Target) -> String? {
         switch target {
         case .bill(let id): bills.first { $0.id == id }?.name

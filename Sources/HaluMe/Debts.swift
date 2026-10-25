@@ -203,7 +203,7 @@ struct DebtEditor: View {
                 .labelsHidden()
             }
             Field(LocalizedStringKey(debt.kind == .personal ? "Who you owe" : "Name")) {
-                TextField(LocalizedStringKey(debt.kind == .installment ? "e.g. Split for headphones" : "Name"), text: $debt.name)
+                BoxTextField(LocalizedStringKey(debt.kind == .installment ? "e.g. Split for headphones" : "Name"), text: $debt.name)
             }
             HStack(alignment: .top, spacing: 12) {
                 Field("Left to pay") { AmountField(amount: $left, currency: currency) }
