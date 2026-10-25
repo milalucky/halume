@@ -59,6 +59,8 @@ struct SavingsGrid: View {
                     HStack {
                         Text(envelope.name).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
                         Spacer()
+                        OwnerBadge(owner: envelope.owner, hidden: envelope.hidden, revealOn: envelope.revealOn)
+                            .font(.caption).foregroundStyle(.tertiary)
                         Image(systemName: envelope.holding.icon).font(.caption).foregroundStyle(.tertiary)
                             .help(Text(envelope.holding.title))
                     }

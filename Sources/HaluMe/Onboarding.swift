@@ -48,7 +48,13 @@ struct OnboardingView: View {
                 }
                 Spacer()
                 Button(LocalizedStringKey(step == count - 1 ? "Start planning" : "Continue")) {
-                    if step == count - 1 { store.budget = draft.budget() } else { step += 1 }
+                    if step == count - 1 {
+                        let budget = draft.budget()
+                        UserDefaults.standard.set(draft.member.uuidString, forKey: "me.\(budget.id)")
+                        store.budget = budget
+                    } else {
+                        step += 1
+                    }
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)
@@ -306,6 +312,7 @@ struct BillsEditor: View {
                             .frame(width: 84, alignment: .leading)
                         RemoveButton { bills.removeAll { $0.id == bill.id } }
                     }
+                    OwnerFields(owner: $bill.owner, split: $bill.split)
                 }
             }
             .card(padding: 20)
@@ -359,6 +366,8 @@ struct SavingsEditor: View {
                     Spacer(minLength: 0)
                 }
                 HoldingFields(envelope: $envelope)
+                OwnerFields(owner: $envelope.owner, split: $envelope.split)
+                HiddenFields(envelope: $envelope)
             }
             .card(padding: 20)
         }

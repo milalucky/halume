@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            HouseholdSection()
             SwiftUI.Section {
                 Toggle("On payday", isOn: ask($payday))
                 Toggle("The day before bills and debt payments", isOn: ask($bills))

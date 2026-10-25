@@ -166,15 +166,19 @@ public struct Envelope: Codable, Sendable, Hashable, Identifiable {
     public var interestToCard: Bool
     /// A deposit's end date.
     public var maturity: Date?
+    /// Only the owner sees it (a gift for the partner), until `revealOn` if set.
+    public var hidden: Bool
+    public var revealOn: Date?
 
     public init(id: UUID = UUID(), owner: Owner, name: String, goal: Goal, priority: Int = 0,
                 split: Split = .equal, opening: Decimal = 0, openedAt: Date = Date(),
                 holding: Holding = .card, rate: Decimal = 0, interestDay: Int = 1,
-                interestToCard: Bool = false, maturity: Date? = nil) {
+                interestToCard: Bool = false, maturity: Date? = nil, hidden: Bool = false, revealOn: Date? = nil) {
         self.id = id; self.owner = owner; self.name = name; self.goal = goal
         self.priority = priority; self.split = split; self.opening = opening; self.openedAt = openedAt
         self.holding = holding; self.rate = rate; self.interestDay = interestDay
         self.interestToCard = interestToCard; self.maturity = maturity
+        self.hidden = hidden; self.revealOn = revealOn
     }
 
     public init(from decoder: Decoder) throws {
@@ -192,6 +196,8 @@ public struct Envelope: Codable, Sendable, Hashable, Identifiable {
         interestDay = try c.decodeIfPresent(Int.self, forKey: .interestDay) ?? 1
         interestToCard = try c.decodeIfPresent(Bool.self, forKey: .interestToCard) ?? false
         maturity = try c.decodeIfPresent(Date.self, forKey: .maturity)
+        hidden = try c.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+        revealOn = try c.decodeIfPresent(Date.self, forKey: .revealOn)
     }
 }
 

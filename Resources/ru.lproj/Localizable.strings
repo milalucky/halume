@@ -331,3 +331,22 @@
 "New week tomorrow" = "Новая неделя завтра";
 "How much did you earn this week?" = "Сколько заработали за неделю?";
 "Expected about %@. Enter the real amount at the end of the week to fix the plan." = "Ожидается около %@. В конце недели введите настоящую сумму, и план пересчитается.";
+
+/* Household */
+"Household" = "Семья";
+"you" = "вы";
+"Partner's name" = "Имя партнёра";
+"Their salary a month (optional)" = "Его или её зарплата в месяц (необязательно)";
+"Add Partner…" = "Добавить партнёра…";
+"Mark bills, savings, debts and subscriptions as shared to split them. Each of you sees your own share in your plan. Syncing between your devices comes with iCloud." = "Отмечайте платежи, накопления, долги и подписки как общие, чтобы делить их. Каждый видит в своём плане свою долю. Синхронизация между вашими устройствами появится с iCloud.";
+"Whose" = "Чьё";
+"Mine" = "Моё";
+"Shared" = "Общее";
+"By income" = "По доходу";
+"I pay" = "Плачу я";
+"%@ pays" = "Платит %@";
+"Hide from %@" = "Скрыть — %@ не увидит";
+"Kept only on your devices, not in the shared budget" = "Хранится только на ваших устройствах, не в общем бюджете";
+"Show on" = "Показать";
+"Hidden until %@" = "Скрыто до %@";
+"Hidden from your partner" = "Скрыто от партнёра";

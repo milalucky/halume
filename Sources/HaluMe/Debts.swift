@@ -124,6 +124,7 @@ private struct DebtCard: View {
                         Text(debt.kind.title).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
+                    OwnerBadge(owner: debt.owner).font(.caption).foregroundStyle(.secondary)
                     if debt.rate > 0 {
                         Text("\(debt.rate.formatted())%").font(.caption.weight(.medium)).foregroundStyle(.secondary)
                     }
@@ -196,6 +197,7 @@ struct DebtEditor: View {
                    action: LocalizedStringKey(isNew ? "Add" : "Save"),
                    canSave: !debt.name.trimmingCharacters(in: .whitespaces).isEmpty && left > 0 && debt.payment > 0,
                    save: save) {
+            OwnerFields(owner: $debt.owner, split: $debt.split)
             Field("What kind") {
                 Picker("Kind", selection: $debt.kind) {
                     ForEach(DebtKind.allCases, id: \.self) { Label($0.title, systemImage: $0.icon).tag($0) }

@@ -85,8 +85,43 @@ final class BudgetStore {
 
     var planner: Planner? { budget.map { Planner($0) } }
 
-    /// The UI has one member for now; the model already supports more.
-    var me: UUID? { budget?.members.first?.id }
+    /// The member using this device: remembered per budget, the budget's creator by default.
+    var me: UUID? {
+        guard let budget else { return nil }
+        if let saved = UserDefaults.standard.string(forKey: "me.\(budget.id)").flatMap(UUID.init(uuidString:)),
+           budget.members.contains(where: { $0.id == saved }) {
+            return saved
+        }
+        return budget.members.first?.id
+    }
+
+    /// Everyone else in the household.
+    var partners: [Member] { budget?.members.filter { $0.id != me } ?? [] }
+
+    /// Adds a partner; their monthly income (if given) lets shared bills split by income.
+    func addPartner(name: String, monthly: Decimal) {
+        guard var budget else { return }
+        let member = Member(name: name)
+        budget.members.append(member)
+        if monthly > 0 {
+            budget.incomes.append(Income(member: member.id, name: String(localized: "Salary"), schedule: .monthly(days: [1]),
+                                         shift: .none, expected: monthly, isMonthly: true))
+        }
+        self.budget = budget
+    }
+
+    /// Removes a partner; what they owned becomes yours, shared things stay shared.
+    func removeMember(_ id: UUID) {
+        guard var budget, id != me, let me else { return }
+        budget.members.removeAll { $0.id == id }
+        budget.incomes.removeAll { $0.member == id }
+        func mine(_ owner: inout Owner) { if owner == .member(id) { owner = .member(me) } }
+        for i in budget.bills.indices { mine(&budget.bills[i].owner) }
+        for i in budget.envelopes.indices { mine(&budget.envelopes[i].owner) }
+        for i in budget.debts.indices { mine(&budget.debts[i].owner) }
+        for i in budget.subscriptions.indices { mine(&budget.subscriptions[i].owner) }
+        self.budget = budget
+    }
 
     /// Marks a transfer or bill of the payday on `date` as done (or not).
     func toggle(_ target: Target, payday date: Date) {

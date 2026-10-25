@@ -91,6 +91,9 @@ private struct SubscriptionRow: View {
         Button { store.sheet = .subscription(sub) } label: {
             HStack(spacing: 12) {
                 Monogram(name: sub.name, size: 34)
+                    .overlay(alignment: .bottomTrailing) {
+                        OwnerBadge(owner: sub.owner).font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+                    }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sub.name).foregroundStyle(sub.isActive ? .primary : .secondary)
                     Group {
@@ -207,6 +210,7 @@ struct SubscriptionEditor: View {
                     .labelsHidden()
                 }
             }
+            OwnerFields(owner: $subscription.owner, split: $subscription.split)
             Toggle("Free trial", isOn: $hasTrial)
             if hasTrial {
                 Field("Trial ends", hint: "The first charge comes this day. You'll get a reminder two days before.") {

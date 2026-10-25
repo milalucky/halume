@@ -203,6 +203,29 @@ check(dailyPlanner.paydays(of: me.id, from: d(2026, 10, 1), to: d(2026, 10, 31))
       "daily pay planned on Mondays")
 check(dailyPlanner.expected(of: me.id, on: d(2026, 10, 19)) == 25_000, "five weekdays a week")
 
+// Household: a hidden gift envelope stays out of the shared part until its reveal date.
+var family = budget
+family.paydays = []
+let gift = Envelope(owner: .member(me.id), name: "Gift for Alina", goal: .perPayday(3_000), priority: 5, hidden: true,
+                    revealOn: d(2027, 3, 8))
+family.envelopes.append(gift)
+var fp = Planner(family, calendar: calendar)
+var giftPay = fp.confirm(fp.plan(for: me.id, on: d(2026, 10, 23)), actual: 80_000)
+giftPay.allocations = giftPay.allocations.map { a in var a = a; a.isDone = true; return a }
+family.paydays = [giftPay]
+family.withdrawals = [Withdrawal(envelope: gift.id, amount: 1_000)]
+let shared = family.sharedPart(at: d(2026, 11, 1))
+check(!shared.envelopes.contains { $0.id == gift.id } && shared.withdrawals.isEmpty, "hidden envelope not shared")
+check(!shared.paydays[0].allocations.contains { $0.target == .envelope(gift.id) }, "transfers to it not shared")
+check(shared.paydays[0].allocations.count == giftPay.allocations.count - 1, "everything else shared")
+let mine = family.privatePart(of: me.id, at: d(2026, 11, 1))
+check(mine.envelopes.map(\.id) == [gift.id] && mine.paydays[0].allocations.count == 1, "private part holds the gift")
+check(family.privatePart(of: partner.id, at: d(2026, 11, 1)).envelopes.isEmpty, "the partner has nothing hidden")
+let back = Budget.merged(shared: shared, private: mine)
+check(Set(back.envelopes.map(\.id)) == Set(family.envelopes.map(\.id)) && Set(back.paydays[0].allocations) == Set(giftPay.allocations)
+      && back.withdrawals == family.withdrawals, "merging gives the whole budget back")
+check(family.sharedPart(at: d(2027, 3, 8)).envelopes.contains { $0.id == gift.id }, "revealed on the date")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),
