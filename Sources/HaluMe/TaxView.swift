@@ -15,7 +15,8 @@ struct TaxFields: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 320)
+            .frame(maxWidth: 320, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         if pay.beforeTax {
             switch pay.taxSystem {

@@ -319,7 +319,7 @@ struct PayEditor: View {
             case .daily:
                 EmptyView()
             }
-            Field(amountLabel, hint: pay.beforeTax ? "Before tax" : "After tax") { AmountField(amount: $pay.amount, currency: currency) }
+            Field(amountLabel) { AmountField(amount: $pay.amount, currency: currency) }
         }
         TaxFields(pay: $pay, currency: currency, calendar: calendar)
         if pay.frequency == .twiceMonthly {
