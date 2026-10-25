@@ -18,6 +18,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var absences: [Absence]
     public var wishes: [Wish]
     public var reservations: [Reservation]
+    public var projects: [Project]
     /// Holidays and moved days off for counting working days; nil means weekends only.
     public var workCalendar: WorkCalendar?
     public var paydays: [Payday]
@@ -30,7 +31,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         self.id = id; self.name = name; self.currency = currency; self.country = ""; self.members = members
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
-        self.absences = []; self.workCalendar = nil; self.wishes = []; self.reservations = []
+        self.absences = []; self.workCalendar = nil; self.wishes = []; self.reservations = []; self.projects = []
         self.paydays = paydays; self.checks = checks
     }
 
@@ -51,6 +52,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         absences = try c.decodeIfPresent([Absence].self, forKey: .absences) ?? []
         wishes = try c.decodeIfPresent([Wish].self, forKey: .wishes) ?? []
         reservations = try c.decodeIfPresent([Reservation].self, forKey: .reservations) ?? []
+        projects = try c.decodeIfPresent([Project].self, forKey: .projects) ?? []
         workCalendar = try c.decodeIfPresent(WorkCalendar.self, forKey: .workCalendar)
         paydays = try c.decodeIfPresent([Payday].self, forKey: .paydays) ?? []
         checks = try c.decodeIfPresent([BalanceCheck].self, forKey: .checks) ?? []
@@ -160,6 +162,8 @@ public enum Goal: Codable, Sendable, Hashable {
     case yearly(Decimal)
     /// No contributions, filled from leftovers only.
     case open
+    /// A project's fund: enough by each task's due date.
+    case project(UUID)
 }
 
 public struct Envelope: Codable, Sendable, Hashable, Identifiable {

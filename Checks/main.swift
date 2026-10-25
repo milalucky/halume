@@ -306,6 +306,33 @@ check(late > early, "CPP/EI maxed out later in the year (\(early) → \(late))")
 let expectedNet = 120_000 - TaxRules.canadaIncomeTax(annual: 120_000, province: "AB") - 4_646.45 - Decimal(string: "1123.07")!
 check(abs((yearNet - expectedNet).double) < 25, "a year's paydays add up to the annual after-tax pay (\(yearNet) vs \(expectedNet))")
 
+// Projects: a move with a visa fee in December and tickets (in CAD) plus movers in March.
+var moving = budget
+moving.paydays = []; moving.envelopes = []
+let fund = Envelope(owner: .member(me.id), name: "Move", goal: .open)
+var project = Project(name: "Move to Canada", owner: .member(me.id), target: d(2027, 6, 1), stages: [
+    Stage(name: "Visa", tasks: [ProjectTask(title: "Visa fee", due: d(2026, 12, 15), cost: 50_000)]),
+    Stage(name: "Move", tasks: [ProjectTask(title: "Tickets", due: d(2027, 3, 1), cost: 2_000, currency: "CAD"),
+                                ProjectTask(title: "Movers", due: d(2027, 3, 1), cost: 200_000)]),
+], fund: fund.id, rates: ["CAD": 60])
+var projectFund = fund
+projectFund.goal = .project(project.id)
+moving.envelopes = [projectFund]
+moving.projects = [project]
+var mp = Planner(moving, calendar: calendar)
+check(project.planned == 370_000, "planned in the budget currency (\(project.planned))")
+check(project.milestones().map(\.needed) == [50_000, 370_000], "cumulative milestones")
+let toMarch = mp.paydays(of: me.id, from: d(2026, 10, 23), to: d(2027, 3, 1)).count
+let fundLine = mp.plan(for: me.id, on: d(2026, 10, 23)).lines.first { $0.target == .envelope(projectFund.id) }!
+var perPay = Decimal(370_000) / Decimal(toMarch), roundedUp = Decimal()
+NSDecimalRound(&roundedUp, &perPay, 0, .up)
+check(fundLine.planned == roundedUp, "saving for the latest milestone (\(fundLine.planned))")
+// The visa is paid (cost 48,000), so it leaves the milestones and the fund pays it out.
+project.stages[0].tasks[0].isDone = true
+project.stages[0].tasks[0].spent = 48_000
+moving.projects = [project]
+check(project.spentSoFar == 48_000 && project.milestones().map(\.needed) == [320_000], "done tasks leave the plan")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),

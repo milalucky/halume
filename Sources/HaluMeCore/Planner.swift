@@ -441,6 +441,9 @@ public struct Planner: Sendable {
             return up(remaining / Decimal(max(count, 1)))
         case .open:
             return 0
+        case .project(let id):
+            guard let project = budget.projects.first(where: { $0.id == id }) else { return 0 }
+            return projectContribution(envelope, project: project, member: member, on: date, share: share)
         }
     }
 
