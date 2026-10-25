@@ -156,6 +156,7 @@ struct TodayPage: View {
                         store.toggle($0, payday: start)
                     }
                     ComingUp(planner: planner, today: today)
+                    TaxAhead(planner: planner, me: me, today: today)
                 } else {
                     Text("Your first payday hasn't come yet.").foregroundStyle(.secondary).card()
                 }
@@ -291,6 +292,62 @@ extension Date {
         case 1: return String(localized: "tomorrow")
         case 2...6: return String(localized: "in \(days) days")
         default: return String(localized: "on \(formatted(.dateTime.day().month(.abbreviated)))")
+        }
+    }
+}
+
+/// Take-home pay changes ahead because of tax: a higher bracket, contributions done for the year, a new year.
+private struct TaxAhead: View {
+    let planner: Planner
+    let me: UUID
+    let today: Date
+
+    var body: some View {
+        let changes = planner.taxChanges(of: me, from: today, to: Calendar.current.date(byAdding: .year, value: 1, to: today)!).prefix(2)
+        if !changes.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Ahead").font(.headline)
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(changes), id: \.date) { change in
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(headline(change)).font(.body.weight(.medium))
+                                Text(reason(change)).font(.callout).foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: change.delta > 0 ? "arrow.up.right" : "arrow.down.right")
+                                .foregroundStyle(change.delta > 0 ? Palette.green : Palette.orange)
+                        }
+                    }
+                }
+                .card()
+            }
+        }
+    }
+
+    private func headline(_ change: TaxChange) -> String {
+        let currency = planner.budget.currency
+        let date = change.date.formatted(.dateTime.day().month(.wide))
+        let amount = abs(change.delta.double).formatted(.currency(code: currency).presentation(.narrow).precision(.fractionLength(0)))
+        return change.delta > 0 ? String(localized: "From \(date): about \(amount) more after tax")
+                                : String(localized: "From \(date): about \(amount) less after tax")
+    }
+
+    private func reason(_ change: TaxChange) -> String {
+        let up = change.delta > 0
+        switch change.system {
+        case .russia:
+            let rate = (change.rate * 100).formatted()
+            return up ? String(localized: "A new tax year: back to 13%.")
+                      : String(localized: "This year's income passes a threshold, so part of it is taxed at \(rate)%.")
+        case .canada:
+            return up ? String(localized: "CPP and EI for this year are paid in full.")
+                      : String(localized: "A new year: CPP and EI start again.")
+        case .unitedStates:
+            return up ? String(localized: "Social Security for this year is paid in full.")
+                      : String(localized: "A new year: Social Security starts again.")
+        case .flat:
+            return ""
         }
     }
 }

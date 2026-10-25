@@ -6,6 +6,8 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var name: String
     /// ISO 4217 code, one per budget.
     public var currency: String
+    /// ISO country code: taxes, holidays and how salaries are usually stated.
+    public var country: String
     public var members: [Member]
     public var incomes: [Income]
     public var bills: [Bill]
@@ -25,7 +27,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
                 incomes: [Income] = [], bills: [Bill] = [], envelopes: [Envelope] = [],
                 debts: [Debt] = [], subscriptions: [Subscription] = [], withdrawals: [Withdrawal] = [],
                 paydays: [Payday] = [], checks: [BalanceCheck] = []) {
-        self.id = id; self.name = name; self.currency = currency; self.members = members
+        self.id = id; self.name = name; self.currency = currency; self.country = ""; self.members = members
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
         self.absences = []; self.workCalendar = nil; self.wishes = []; self.reservations = []
@@ -38,6 +40,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         currency = try c.decode(String.self, forKey: .currency)
+        country = try c.decodeIfPresent(String.self, forKey: .country) ?? ""
         members = try c.decode([Member].self, forKey: .members)
         incomes = try c.decodeIfPresent([Income].self, forKey: .incomes) ?? []
         bills = try c.decodeIfPresent([Bill].self, forKey: .bills) ?? []

@@ -25,7 +25,7 @@ struct OnboardingView: View {
                         switch step {
                         case 0: WelcomeStep(draft: $draft)
                         case 1:
-                            PayEditor(pay: $draft.pay, currency: draft.currency)
+                            PayEditor(pay: $draft.pay, currency: draft.currency, calendar: draft.workCalendar)
                             if draft.pay.frequency != .daily {
                                 Field("Holidays and moved days off") { WorkCalendarPicker(calendar: $draft.workCalendar) }
                             }
@@ -78,6 +78,7 @@ struct OnboardingView: View {
 
 struct Draft {
     var name = ""
+    var country = Locale.current.region?.identifier ?? "US"
     var currency = Locale.current.currency?.identifier ?? "USD"
     var pay = PaySettings()
     var bills: [Bill] = []
@@ -90,12 +91,26 @@ struct Draft {
     /// Pre-filled from a budget (the demo).
     init(_ budget: Budget) {
         name = budget.name
+        country = budget.country
         currency = budget.currency
-        if let income = budget.incomes.first { pay = PaySettings(income) }
+        if let income = budget.incomes.first { pay = PaySettings(income, country: budget.country) }
         bills = budget.bills
         envelopes = budget.envelopes
         member = budget.members[0].id
         workCalendar = budget.workCalendar
+    }
+
+    /// A country's defaults: currency, holidays, before-tax pay where taxes are built in.
+    mutating func choose(country code: String) {
+        country = code
+        pay.country = code
+        if let money = Locale(identifier: "und_\(code)").currency?.identifier { currency = money }
+        workCalendar = code == "RU" ? .russia : nil
+        pay.beforeTax = ["RU", "CA", "US"].contains(code)
+        if code == "CA" { pay.region = "AB" }
+        if code == "US" { pay.region = "TX" }
+        // Most North American payrolls pay every two weeks; Russian ones twice a month.
+        pay.frequency = ["CA", "US"].contains(code) ? .biweekly : .twiceMonthly
     }
 
     func budget() -> Budget {
@@ -108,6 +123,7 @@ struct Draft {
             incomes: [income], bills: bills.cleaned, envelopes: envelopes.cleaned
         )
         budget.workCalendar = workCalendar
+        budget.country = country
         return budget
     }
 }
@@ -146,10 +162,18 @@ struct PaySettings {
     var split = SplitKind.byWorkdays
     var advance: Decimal = 0
     var weekdaysOnly = true
+    /// Where taxes and salary habits come from.
+    var country = ""
+    var beforeTax = false
+    var region = ""
+    var married = false
+    var regionalRate: Decimal = 0
+    var flatRate: Decimal = 0
 
     init() {}
 
-    init(_ income: Income) {
+    init(_ income: Income, country: String) {
+        self.country = country
         shift = income.shift
         amount = income.expected
         switch income.schedule {
@@ -166,6 +190,11 @@ struct PaySettings {
             frequency = .daily
             weekdaysOnly = weekdays
         }
+        if let tax = income.tax {
+            beforeTax = true
+            region = tax.region; married = tax.married; regionalRate = tax.regionalRate; flatRate = tax.flatRate
+        }
+        if yearly { amount = income.expected * perYear }
         if income.isMonthly {
             switch income.split {
             case .equal: split = .equal
@@ -177,6 +206,28 @@ struct PaySettings {
 
     var isMonthly: Bool { frequency == .twiceMonthly || frequency == .monthly }
 
+    /// Canada and the US state salaries per year; elsewhere per month (or per payday / day).
+    var yearly: Bool { frequency != .daily && (country == "CA" || country == "US") }
+
+    /// Paydays a year, to turn a yearly salary into one payday's amount.
+    var perYear: Decimal {
+        switch frequency {
+        case .twiceMonthly, .monthly: 12
+        case .biweekly: 26
+        case .weekly: 52
+        case .daily: 1
+        }
+    }
+
+    var taxSystem: TaxSetup.System {
+        switch country {
+        case "RU": .russia
+        case "CA": .canada
+        case "US": .unitedStates
+        default: .flat
+        }
+    }
+
     func apply(to income: inout Income) {
         income.schedule = switch frequency {
         case .twiceMonthly: .monthly(days: [firstDay, secondDay].sorted())
@@ -186,8 +237,11 @@ struct PaySettings {
         case .daily: .daily(weekdaysOnly: weekdaysOnly)
         }
         income.shift = shift
-        income.expected = amount
+        income.expected = yearly ? amount / perYear : amount
         income.isMonthly = isMonthly
+        income.tax = beforeTax
+            ? TaxSetup(system: taxSystem, region: region, married: married, regionalRate: regionalRate, flatRate: flatRate)
+            : nil
         income.split = switch split {
         case .equal: .equal
         case .byWorkdays: .byWorkdays
@@ -210,6 +264,20 @@ private struct WelcomeStep: View {
             Point(icon: "sun.max", title: "One number a day", text: "How much you can spend until the next pay.")
         }
         .card(padding: 20)
+        Field("Country", hint: "Sets taxes, holidays and the currency. You can change any of it.") {
+            CountryField(code: $draft.country)
+        }
+        .onChange(of: draft.country) { _, code in draft.choose(country: code) }
+        .task(id: draft.country) {
+            // Holidays for the chosen country, in the background; Russia's are built in.
+            guard draft.country != "RU", draft.workCalendar?.country != draft.country else { return }
+            let year = Calendar.current.component(.year, from: Date())
+            let code = draft.country
+            if let loaded = try? await CalendarLoader.load(code, years: [year, year + 1]), draft.country == code {
+                draft.workCalendar = loaded
+            }
+        }
+        .onAppear { if draft.pay.country.isEmpty { draft.choose(country: draft.country) } }
         HStack(alignment: .top, spacing: 16) {
             Field("Your name") { BoxTextField("Optional", text: $draft.name) }
             Field("Currency") {
@@ -222,6 +290,7 @@ private struct WelcomeStep: View {
 struct PayEditor: View {
     @Binding var pay: PaySettings
     let currency: String
+    var calendar: WorkCalendar?
     var showsTitle = true
 
     var body: some View {
@@ -250,8 +319,9 @@ struct PayEditor: View {
             case .daily:
                 EmptyView()
             }
-            Field(amountLabel, hint: "After tax") { AmountField(amount: $pay.amount, currency: currency) }
+            Field(amountLabel, hint: pay.beforeTax ? "Before tax" : "After tax") { AmountField(amount: $pay.amount, currency: currency) }
         }
+        TaxFields(pay: $pay, currency: currency, calendar: calendar)
         if pay.frequency == .twiceMonthly {
             Field("How it's split", hint: splitHint) {
                 Picker("Split", selection: $pay.split) {
@@ -283,8 +353,8 @@ struct PayEditor: View {
 
     private var amountLabel: LocalizedStringKey {
         switch pay.frequency {
-        case .twiceMonthly, .monthly: "Salary a month"
-        case .biweekly, .weekly: "Each payday"
+        case .twiceMonthly, .monthly: pay.yearly ? "Salary a year" : "Salary a month"
+        case .biweekly, .weekly: pay.yearly ? "Salary a year" : "Each payday"
         case .daily: "Each day"
         }
     }

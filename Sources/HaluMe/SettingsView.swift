@@ -37,6 +37,10 @@ struct SettingsView: View {
                 Text("Language")
             }
             SwiftUI.Section {
+                LabeledContent("Country") {
+                    CountryField(code: Binding(get: { store.budget?.country ?? "" }, set: { store.budget?.country = $0 }))
+                        .frame(width: 220)
+                }
                 LabeledContent("Currency", value: store.budget?.currency ?? "—")
                 Button("Start Over…", role: .destructive) { store.confirmingStartOver = true }
                     .disabled(store.budget == nil)

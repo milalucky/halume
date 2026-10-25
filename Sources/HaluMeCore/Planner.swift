@@ -88,7 +88,8 @@ public struct Planner: Sendable {
             raw = monthDays(days, from: add(-14, to: from)!, to: add(14, to: to)!)
         case .everyWeeks(let weeks, let anchor):
             let step = max(1, weeks) * 7, anchor = day(anchor)
-            var k = max(0, self.days(anchor, from) / step - 1)
+            // Paydays run both ways from the anchor: one known payday stands for the whole schedule.
+            var k = Int((Double(self.days(anchor, from)) / Double(step)).rounded(.down)) - 1
             var out: [Date] = []
             while let d = add(k * step, to: anchor), d <= add(14, to: to)! {
                 out.append(d)

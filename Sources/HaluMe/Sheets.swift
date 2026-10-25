@@ -104,7 +104,7 @@ struct PlanEditor: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     switch section {
-                    case .pay: PayEditor(pay: $pay, currency: currency, showsTitle: false)
+                    case .pay: PayEditor(pay: $pay, currency: currency, calendar: store.budget?.workCalendar, showsTitle: false)
                     case .bills: BillsEditor(bills: $bills, currency: currency, member: member, showsTitle: false)
                     case .savings:
                         Text("The top one is funded first when pay runs short.").foregroundStyle(.secondary)
@@ -132,7 +132,7 @@ struct PlanEditor: View {
         .frame(width: 640, height: 600)
         .onAppear {
             guard let budget = store.budget else { return }
-            if let income = budget.incomes.first { pay = PaySettings(income) }
+            if let income = budget.incomes.first { pay = PaySettings(income, country: budget.country) }
             bills = budget.bills
             envelopes = budget.envelopes.sorted { $0.priority < $1.priority }
         }

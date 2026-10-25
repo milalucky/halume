@@ -139,6 +139,11 @@ extension Planner {
         max(1, dates(of: income, from: date, to: add(-1, to: yearLater(date))!).count)
     }
 
+    /// One payday's pay before tax.
+    public func pay(grossOf income: Income, on date: Date) -> Decimal {
+        pay(of: income, on: date, absences: true, gross: true)
+    }
+
     /// What is withheld from one payday's gross pay.
     public func tax(of income: Income, gross: Decimal, on date: Date) -> Decimal {
         guard let setup = income.tax, gross > 0 else { return 0 }
@@ -174,4 +179,38 @@ extension Planner {
         guard gross > 0 else { return 1 }
         return 1 - tax(of: income, gross: gross, on: date) / gross
     }
+}
+
+/// A payday where take-home pay changes because of tax (a higher bracket, contributions done for the year, a new year).
+public struct TaxChange: Sendable, Hashable {
+    public var date: Date
+    /// After-tax difference against the paydays before, + more, − less.
+    public var delta: Decimal
+    public var system: TaxSetup.System
+    /// Russia: the rate from this payday.
+    public var rate: Decimal
+}
+
+extension Planner {
+    /// Paydays in [from, to] where the share withheld changes noticeably.
+    public func taxChanges(of member: UUID, from: Date, to: Date) -> [TaxChange] {
+        guard let income = budget.incomes.first(where: { $0.member == member && $0.tax != nil }), let setup = income.tax else { return [] }
+        var out: [TaxChange] = []
+        var previous: Decimal?
+        for date in dates(of: income, from: add(-40, to: from)!, to: to) {
+            let gross = pay(of: income, on: date, absences: false, gross: true)
+            guard gross > 0 else { continue }
+            let share = tax(of: income, gross: gross, on: date) / gross
+            if let previous, abs((share - previous).double) > 0.005, date >= day(from) {
+                let rate = setup.system == .russia ? TaxRules.russiaRate(yearToDate: grossBefore(income, on: date) + gross) : 0
+                out.append(TaxChange(date: date, delta: down((previous - share) * gross), system: setup.system, rate: rate))
+            }
+            previous = share
+        }
+        return out
+    }
+}
+
+extension Decimal {
+    var double: Double { NSDecimalNumber(decimal: self).doubleValue }
 }
