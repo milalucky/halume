@@ -56,6 +56,8 @@ private struct Capsulized: View {
 
     var body: some View {
         configuration.label
+            .lineLimit(1)
+            .fixedSize()
             .accessibilityElement(children: .combine)
             .font(.body.weight(prominent ? .semibold : .medium))
             .foregroundStyle(prominent ? AnyShapeStyle(Color.black.opacity(0.85)) : AnyShapeStyle(.primary))

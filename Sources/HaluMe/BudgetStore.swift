@@ -353,6 +353,7 @@ enum Demo {
             Wish(owner: me.id, name: "iPhone Duo", price: 149_990, link: "https://www.apple.com/iphone/", note: String(localized: "Black, 256 GB")),
             Wish(owner: me.id, name: String(localized: "Running shoes"), price: 12_900),
         ]
+        budget.workCalendar = .russia
         addHistory(to: &budget, member: me.id, before: today)
         let planner = Planner(budget)
         if let start = planner.current(on: today, of: me.id) {

@@ -95,7 +95,8 @@ private struct WishCard: View {
                     if envelope == nil, wish.price > 0 {
                         Button("Save for It") { store.startSaving(for: wish) }.buttonStyle(SecondaryButtonStyle())
                     }
-                    Button("Got It") { store.markGot(wish) }.buttonStyle(SecondaryButtonStyle())
+                    Spacer(minLength: 0)
+                    IconButton(icon: "checkmark", label: "Got It") { store.markGot(wish) }
                 } else {
                     Button { store.toggleReservation(wish) } label: {
                         Label(reserved ? "You're gifting this" : "I'll Gift This", systemImage: reserved ? "gift.fill" : "gift")
