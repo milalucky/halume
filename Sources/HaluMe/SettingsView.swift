@@ -23,6 +23,14 @@ struct SettingsView: View {
                 Text("Reminders")
             }
             SwiftUI.Section {
+                Picker("Language", selection: Binding(get: { AppLanguage.current }, set: { AppLanguage.switchTo($0) })) {
+                    ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
+                }
+                Text("HaluMe restarts in the new language.").font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text("Language")
+            }
+            SwiftUI.Section {
                 LabeledContent("Currency", value: store.budget?.currency ?? "—")
                 Button("Start Over…", role: .destructive) { store.confirmingStartOver = true }
                     .disabled(store.budget == nil)

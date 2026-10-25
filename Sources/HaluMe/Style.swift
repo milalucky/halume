@@ -1,3 +1,4 @@
+import HaluMeCore
 import SwiftUI
 
 enum Palette {
@@ -55,6 +56,7 @@ private struct Capsulized: View {
 
     var body: some View {
         configuration.label
+            .accessibilityElement(children: .combine)
             .font(.body.weight(prominent ? .semibold : .medium))
             .foregroundStyle(prominent ? AnyShapeStyle(Color.black.opacity(0.85)) : AnyShapeStyle(.primary))
             .padding(.horizontal, 20)
@@ -159,13 +161,78 @@ struct Field<Content: View>: View {
     }
 }
 
+/// A money field that keeps every keystroke: the value updates as you type, in any format.
 struct AmountField: View {
-    @Binding var amount: Decimal
+    @Binding var amount: Decimal?
     let currency: String
+    var placeholder: LocalizedStringKey = "0"
+
+    init(amount: Binding<Decimal>, currency: String) {
+        _amount = Binding(get: { amount.wrappedValue }, set: { amount.wrappedValue = $0 ?? 0 })
+        self.currency = currency
+    }
+
+    /// An optional amount: empty means "not said".
+    init(optional amount: Binding<Decimal?>, currency: String, placeholder: LocalizedStringKey) {
+        _amount = amount
+        self.currency = currency
+        self.placeholder = placeholder
+    }
 
     var body: some View {
-        TextField("0", value: $amount, format: .currency(code: currency).presentation(.narrow).precision(.fractionLength(0)))
+        NumberText(value: $amount, placeholder: placeholder, suffix: Self.symbol(currency))
+    }
+
+    /// "₽", "$", "€": the narrow symbol for the code.
+    static func symbol(_ currency: String) -> String {
+        let sample = Decimal(0).formatted(.currency(code: currency).presentation(.narrow).precision(.fractionLength(0)))
+        let symbol = sample.filter { !$0.isNumber && !$0.isWhitespace && $0 != "\u{00A0}" && $0 != "\u{202F}" }
+        return symbol.isEmpty ? currency : symbol
+    }
+}
+
+/// A percent field that keeps every keystroke.
+struct PercentField: View {
+    @Binding var value: Decimal
+
+    var body: some View {
+        NumberText(value: Binding(get: { value }, set: { value = $0 ?? 0 }), placeholder: "0", suffix: "%")
+    }
+}
+
+/// The shared text field behind amounts and percents: parses as you type, tidies up when you leave it.
+private struct NumberText: View {
+    @Binding var value: Decimal?
+    let placeholder: LocalizedStringKey
+    let suffix: String
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .focused($focused)
             .monospacedDigit()
+            .padding(.trailing, 18)
+            .overlay(alignment: .trailing) {
+                Text(suffix).foregroundStyle(.secondary).padding(.trailing, 8).allowsHitTesting(false)
+            }
+            .onAppear { text = Self.display(value) }
+            .onChange(of: text) { _, new in
+                let parsed = Amount.parse(new)
+                if parsed != value { value = parsed }
+            }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { text = Self.display(value) }
+            }
+            .onChange(of: value) { _, new in
+                // Changed from outside (a suggestion, a reset): show it unless the user is typing.
+                if !focused, Amount.parse(text) != new { text = Self.display(new) }
+            }
+    }
+
+    static func display(_ value: Decimal?) -> String {
+        guard let value, value != 0 else { return "" }
+        return value.formatted(.number.precision(.fractionLength(0...2)))
     }
 }
 
@@ -249,4 +316,108 @@ struct FlowLayout: Layout {
         if !current.items.isEmpty { rows.append(current) }
         return rows
     }
+}
+
+/// A date as readable text ("25 October 2026") that opens a calendar when clicked.
+struct DateField: View {
+    @Binding var date: Date
+    var range: ClosedRange<Date> = .distantPast ... .distantFuture
+    @State private var open = false
+    @State private var hovering = false
+
+    var body: some View {
+        Button { open.toggle() } label: {
+            HStack(spacing: 8) {
+                Text(date.formatted(.dateTime.day().month(.wide).year()))
+                    .monospacedDigit()
+                Spacer(minLength: 4)
+                Image(systemName: "calendar").foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.background.opacity(0.6)))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(.primary.opacity(hovering || open ? 0.25 : 0.12)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityValue(Text(date.formatted(date: .long, time: .omitted)))
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            DatePicker("", selection: $date, in: range, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .padding(12)
+                .onChange(of: date) { open = false }
+        }
+    }
+}
+
+/// Picks a currency: popular ones first, search by code or name in English and the app's language.
+struct CurrencyField: View {
+    @Binding var code: String
+    @State private var open = false
+    @State private var query = ""
+
+    private static let popular = ["RUB", "USD", "EUR", "KZT", "BYN", "UAH", "GEL", "AMD", "UZS", "KGS", "AZN", "TRY",
+                                  "GBP", "CNY", "AED", "THB", "RSD", "ILS", "PLN", "CHF", "JPY", "INR", "CAD", "AUD"]
+
+    var body: some View {
+        Button { open.toggle() } label: {
+            HStack(spacing: 8) {
+                Text(Self.title(code))
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.background.opacity(0.6)))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(.primary.opacity(0.12)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(Text(Self.title(code)))
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            VStack(spacing: 8) {
+                TextField("Search currency", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                List(matches, id: \.self) { item in
+                    Button { code = item; open = false; query = "" } label: {
+                        HStack {
+                            Text(item).monospaced().foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
+                            Text(Self.name(item))
+                            Spacer()
+                            Text(AmountField.symbol(item)).foregroundStyle(.secondary)
+                            if item == code { Image(systemName: "checkmark").foregroundStyle(Palette.orange) }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listStyle(.plain)
+            }
+            .padding(12)
+            .frame(width: 340, height: 380)
+        }
+    }
+
+    private var matches: [String] {
+        let local = Locale.current.currency?.identifier
+        let all = Array(Set(Locale.commonISOCurrencyCodes + [code])).sorted()
+        let ordered = [local].compactMap { $0 } + Self.popular + all
+        var seen = Set<String>()
+        let unique = ordered.filter { all.contains($0) && seen.insert($0).inserted }
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return unique }
+        return unique.filter { c in
+            c.lowercased().contains(q) || Self.name(c).lowercased().contains(q)
+                || (Locale(identifier: "en").localizedString(forCurrencyCode: c) ?? "").lowercased().contains(q)
+        }
+    }
+
+    static func name(_ code: String) -> String {
+        Locale.current.localizedString(forCurrencyCode: code) ?? code
+    }
+
+    static func title(_ code: String) -> String { "\(code) — \(name(code))" }
 }

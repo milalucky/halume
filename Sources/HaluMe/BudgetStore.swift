@@ -61,7 +61,9 @@ final class BudgetStore {
     private let url: URL
 
     init() {
-        let dir = URL.applicationSupportDirectory.appending(path: "HaluMe", directoryHint: .isDirectory)
+        // `--data <folder>` keeps a test budget apart from the real one.
+        let custom = CommandLine.arguments.firstIndex(of: "--data").map { URL(fileURLWithPath: CommandLine.arguments[$0 + 1]) }
+        let dir = custom ?? URL.applicationSupportDirectory.appending(path: "HaluMe", directoryHint: .isDirectory)
         url = dir.appending(path: "budget.json")
         if isDemo {
             // `--demo --step N` shows onboarding step N with demo answers.

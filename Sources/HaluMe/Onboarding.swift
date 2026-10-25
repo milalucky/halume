@@ -16,6 +16,7 @@ struct OnboardingView: View {
                     HStack {
                         Brand()
                         Spacer()
+                        if step == 0 { LanguageMenu().padding(.trailing, 12) }
                         StepDots(count: count, current: step)
                     }
                     .padding(.bottom, 12)
@@ -168,12 +169,7 @@ private struct WelcomeStep: View {
         HStack(alignment: .top, spacing: 16) {
             Field("Your name") { TextField("Optional", text: $draft.name) }
             Field("Currency") {
-                Picker("Currency", selection: $draft.currency) {
-                    ForEach(Array(Set(Locale.commonISOCurrencyCodes + [draft.currency])).sorted(), id: \.self) { code in
-                        Text("\(code) — \(Locale.current.localizedString(forCurrencyCode: code) ?? code)").tag(code)
-                    }
-                }
-                .labelsHidden()
+                CurrencyField(code: $draft.currency)
             }
         }
     }
@@ -204,8 +200,7 @@ struct PayEditor: View {
                 Field("Payday") { DayPicker(day: $pay.firstDay) }
             case .biweekly, .weekly:
                 Field("Last payday") {
-                    DatePicker("Last payday", selection: $pay.lastPayday, in: ...Date(), displayedComponents: .date)
-                        .labelsHidden()
+                    DateField(date: $pay.lastPayday, range: .distantPast ... Date())
                 }
             }
             Field("Each payday", hint: "After tax") { AmountField(amount: $pay.amount, currency: currency) }
@@ -281,7 +276,7 @@ struct SavingsEditor: View {
                 HStack(alignment: .top, spacing: 12) {
                     if envelope.kind == .percent {
                         Field("Percent of each pay") {
-                            TextField("10", value: $envelope.value, format: .number).frame(width: 90, alignment: .leading)
+                            PercentField(value: $envelope.value).frame(width: 90, alignment: .leading)
                         }
                     } else {
                         Field(envelope.kind.amountLabel) { AmountField(amount: $envelope.value, currency: currency) }
@@ -289,8 +284,7 @@ struct SavingsEditor: View {
                     }
                     if envelope.kind == .target {
                         Field("By") {
-                            DatePicker("By", selection: $envelope.deadline, in: Date()..., displayedComponents: .date)
-                                .labelsHidden()
+                            DateField(date: $envelope.deadline, range: Date() ... .distantFuture)
                         }
                     }
                     Field("Already saved") { AmountField(amount: $envelope.opening, currency: currency) }

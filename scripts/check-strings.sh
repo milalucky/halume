@@ -9,6 +9,6 @@ have |= set(plistlib.load(open("Resources/ru.lproj/Localizable.stringsdict", "rb
 ignore = {"HaluMe", "Plan each paycheck,\nnot each coffee", "HaluMe %@.csv", "HaluMe: could not save the budget: %@", "RUB", "USD", "%@, %@", "%@ — %@", " — %@",
           "%@%%", "Milana", "Yandex Split", "Yandex Plus", "Kinopoisk", "Spotify",
           "ChatGPT Plus", "Telegram Premium", "Apple Music", "VK Music", "YouTube Premium", "Netflix", }
-missing = [k for k in (l.rstrip("\n").replace("\\n", "\n") for l in sys.stdin) if k not in have and k not in ignore and not re.search(r"-%@$|\.json$|^halume\.", k)]
+missing = [k for k in (l.rstrip("\n").replace("\\n", "\n") for l in sys.stdin) if k not in have and k not in ignore and not re.search(r"-%@$|\.json$|^halume\.|^[A-Z]{3}$|^%$", k) and k not in {"AppleLanguages", "English", "Русский"}]
 print("\n".join(missing) if missing else "All UI strings translated")
 '

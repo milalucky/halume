@@ -179,6 +179,14 @@ check(periods[0].overspent == max(0, cushionPlanned - 2_000), "overspent")
 check(hp.group(periods, by: .month).count == 1 && hp.group(periods, by: .month)[0].income == 150_000, "grouped by month")
 check(hp.csv(periods).split(separator: "\n").count == 3, "csv rows")
 
+// Typed amounts.
+for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
+                       ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),
+                       ("1 000 000", 1_000_000), ("0", 0), ("16%", 16)] as [(String, Decimal)] {
+    check(Amount.parse(typed) == value, "parse \(typed) → \(String(describing: Amount.parse(typed)))")
+}
+check(Amount.parse("") == nil && Amount.parse("abc") == nil, "nothing typed")
+
 // Old files without the newer lists still load.
 let old = #"{"id":"\#(UUID())","name":"Old","currency":"RUB","members":[]}"#
 check((try? JSONDecoder().decode(Budget.self, from: Data(old.utf8)))?.debts.isEmpty == true, "older budget file decodes")

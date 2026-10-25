@@ -197,7 +197,7 @@ struct SubscriptionEditor: View {
             }
             HStack(alignment: .top, spacing: 12) {
                 Field("Next charge") {
-                    DatePicker("Next charge", selection: $subscription.anchor, displayedComponents: .date).labelsHidden()
+                    DateField(date: $subscription.anchor)
                 }
                 Field("Category") {
                     Picker("Category", selection: $subscription.category) {
@@ -210,10 +210,7 @@ struct SubscriptionEditor: View {
             Toggle("Free trial", isOn: $hasTrial)
             if hasTrial {
                 Field("Trial ends", hint: "The first charge comes this day. You'll get a reminder two days before.") {
-                    DatePicker("Trial ends", selection: Binding(get: { subscription.trialEnds ?? Date() },
-                                                                set: { subscription.trialEnds = $0 }),
-                               displayedComponents: .date)
-                        .labelsHidden()
+                    DateField(date: Binding(get: { subscription.trialEnds ?? Date() }, set: { subscription.trialEnds = $0 }))
                 }
             }
             if !isNew {

@@ -212,7 +212,7 @@ struct DebtEditor: View {
             HStack(alignment: .top, spacing: 12) {
                 Field("Due day") { DayPicker(day: $debt.day) }.frame(width: 100, alignment: .leading)
                 if debt.kind.hasInterest {
-                    Field("Interest a year, %") { TextField("0", value: $debt.rate, format: .number) }
+                    Field("Interest a year, %") { PercentField(value: $debt.rate) }
                 }
                 if debt.kind != .personal {
                     Field("Borrowed", hint: "For progress") { AmountField(amount: $debt.original, currency: currency) }

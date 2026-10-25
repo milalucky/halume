@@ -48,8 +48,7 @@ struct PaySheet: View {
             let currency = store.budget?.currency ?? "USD"
             Field("Amount") { AmountField(amount: $amount, currency: currency) }
             Field("Left from your last pay", hint: "Optional. What was still on your card when this pay came. It shows in your stats whether you stayed within the plan.") {
-                TextField("Skip", value: $leftover, format: .currency(code: currency).presentation(.narrow).precision(.fractionLength(0)))
-                    .monospacedDigit()
+                AmountField(optional: $leftover, currency: currency, placeholder: "Skip")
             }
         }
         .onAppear {
