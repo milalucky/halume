@@ -227,7 +227,8 @@ enum Demo {
         let today = calendar.startOfDay(for: Date())
         func day(_ offset: Int) -> Date { calendar.date(byAdding: .day, value: offset, to: today)! }
         let started = calendar.date(byAdding: .month, value: -14, to: today)!
-        let income = Income(member: me.id, name: String(localized: "Salary"), schedule: .monthly(days: [10, 25]), expected: 115_000)
+        let income = Income(member: me.id, name: String(localized: "Salary"), schedule: .monthly(days: [10, 25]), expected: 230_000,
+                            isMonthly: true, split: .byWorkdays)
         var budget = Budget(
             name: "Milana", currency: "RUB", members: [me], incomes: [income],
             bills: [
@@ -267,7 +268,7 @@ enum Demo {
         addHistory(to: &budget, member: me.id, before: today)
         let planner = Planner(budget)
         if let start = planner.current(on: today, of: me.id) {
-            var record = planner.confirm(planner.plan(for: me.id, on: start), actual: 115_000)
+            var record = planner.confirm(planner.plan(for: me.id, on: start), actual: planner.expected(of: me.id, on: start))
             for i in record.allocations.indices where [String(localized: "Rent"), String(localized: "Vacation"), "Yandex Split"].contains(budget.name(of: record.allocations[i].target)) {
                 record.allocations[i].isDone = true
             }

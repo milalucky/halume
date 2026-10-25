@@ -81,8 +81,59 @@ public struct Planner: Sendable {
                 k += 1
             }
             raw = out
+        case .daily:
+            // Planned weekly: one "payday" each Monday.
+            let back = (calendar.component(.weekday, from: from) + 5) % 7 // days since Monday
+            var monday = add(-back, to: from)!
+            var out: [Date] = []
+            while monday <= to {
+                out.append(monday)
+                monday = add(7, to: monday)!
+            }
+            return out.filter { $0 >= from && $0 <= to }
         }
         return raw.map { shifted($0, income.shift) }.filter { $0 >= from && $0 <= to }
+    }
+
+    /// What one income is expected to bring on one of its paydays.
+    public func expected(of income: Income, on date: Date) -> Decimal {
+        let date = day(date)
+        switch income.schedule {
+        case .daily(let weekdaysOnly):
+            let days = (0..<7).map { add($0, to: date)! }.filter { !weekdaysOnly || !calendar.isDateInWeekend($0) }.count
+            return income.expected * Decimal(days)
+        case .everyWeeks:
+            return income.expected
+        case .monthly(let days):
+            guard income.isMonthly else { return income.expected }
+            guard days.count == 2 else { return down(income.expected / Decimal(max(days.count, 1))) }
+            // Which nominal day was moved onto this date by the weekend rule.
+            let nominal = monthDays(days, from: add(-3, to: date)!, to: add(3, to: date)!)
+                .first { shifted($0, income.shift) == date } ?? date
+            // A payday late in the month pays the first half of that month (the advance);
+            // an early one pays the second half of the month before.
+            let firstHalf = calendar.component(.day, from: nominal) >= 16
+            let month = firstHalf ? nominal : calendar.date(byAdding: .month, value: -1, to: nominal)!
+            switch income.split {
+            case .equal:
+                return firstHalf ? down(income.expected / 2) : income.expected - down(income.expected / 2)
+            case .advance(let amount):
+                return firstHalf ? min(amount, income.expected) : max(0, income.expected - amount)
+            case .byWorkdays:
+                let (first, all) = workdays(in: month)
+                let advance = all > 0 ? down(income.expected * Decimal(first) / Decimal(all)) : down(income.expected / 2)
+                return firstHalf ? advance : income.expected - advance
+            }
+        }
+    }
+
+    /// Weekdays in the 1st–15th and in the whole month.
+    func workdays(in month: Date) -> (firstHalf: Int, month: Int) {
+        let start = calendar.dateInterval(of: .month, for: month)!.start
+        let length = calendar.range(of: .day, in: .month, for: start)!.count
+        // shortcut: weekends only, no public holidays; add a per-country holiday list when localizing.
+        let weekdays = (0..<length).filter { !calendar.isDateInWeekend(add($0, to: start)!) }
+        return (weekdays.filter { $0 < 15 }.count, weekdays.count)
     }
 
     /// All pay dates of a member in [from, to], one per day.
@@ -103,7 +154,7 @@ public struct Planner: Sendable {
     /// Sum of the member's incomes paid on that day.
     public func expected(of member: UUID, on date: Date) -> Decimal {
         budget.incomes.filter { $0.member == member && !dates(of: $0, from: date, to: date).isEmpty }
-            .reduce(0) { $0 + $1.expected }
+            .reduce(0) { $0 + expected(of: $1, on: date) }
     }
 
     // MARK: Shares and balances

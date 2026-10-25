@@ -69,6 +69,17 @@ public enum Schedule: Codable, Sendable, Hashable {
     /// Days of the month; 31 means the last day of a shorter month.
     case monthly(days: [Int])
     case everyWeeks(Int, from: Date)
+    /// Paid every day (couriers, drivers, shifts); planned by the week, from Monday.
+    case daily(weekdaysOnly: Bool)
+}
+
+/// How a monthly salary is divided between two paydays.
+public enum PaySplit: Codable, Sendable, Hashable {
+    case equal
+    /// Each payday gets the share of weekdays in the half of the month it pays for.
+    case byWorkdays
+    /// A fixed advance for the first half; the rest comes with the second payday.
+    case advance(Decimal)
 }
 
 public enum WeekendShift: String, Codable, Sendable, Hashable {
@@ -81,12 +92,29 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
     public var name: String
     public var schedule: Schedule
     public var shift: WeekendShift
+    /// Per payday; per day for daily pay; for the whole month when `isMonthly`.
     public var expected: Decimal
+    /// `expected` is a monthly salary split between the paydays by `split`.
+    public var isMonthly: Bool
+    public var split: PaySplit
 
     public init(id: UUID = UUID(), member: UUID, name: String, schedule: Schedule,
-                shift: WeekendShift = .earlier, expected: Decimal) {
+                shift: WeekendShift = .earlier, expected: Decimal, isMonthly: Bool = false, split: PaySplit = .equal) {
         self.id = id; self.member = member; self.name = name
         self.schedule = schedule; self.shift = shift; self.expected = expected
+        self.isMonthly = isMonthly; self.split = split
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        member = try c.decode(UUID.self, forKey: .member)
+        name = try c.decode(String.self, forKey: .name)
+        schedule = try c.decode(Schedule.self, forKey: .schedule)
+        shift = try c.decodeIfPresent(WeekendShift.self, forKey: .shift) ?? .earlier
+        expected = try c.decode(Decimal.self, forKey: .expected)
+        isMonthly = try c.decodeIfPresent(Bool.self, forKey: .isMonthly) ?? false
+        split = try c.decodeIfPresent(PaySplit.self, forKey: .split) ?? .equal
     }
 }
 

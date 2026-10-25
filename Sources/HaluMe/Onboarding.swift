@@ -52,7 +52,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)
-                .disabled(step == 1 && draft.pay.amount <= 0)
+                .disabled(step == 1 && (draft.pay.amount <= 0 || (draft.pay.split == .advance && draft.pay.frequency == .twiceMonthly && draft.pay.advance >= draft.pay.amount)))
             }
             .frame(maxWidth: 600)
             .padding(.horizontal, 40)
@@ -111,7 +111,12 @@ extension [Envelope] {
 }
 
 enum Frequency: String, CaseIterable, Identifiable {
-    case twiceMonthly = "Twice a month", monthly = "Monthly", biweekly = "Every 2 weeks", weekly = "Weekly"
+    case twiceMonthly = "Twice a month", monthly = "Monthly", biweekly = "Every 2 weeks", weekly = "Weekly", daily = "Every day"
+    var id: Self { self }
+}
+
+enum SplitKind: String, CaseIterable, Identifiable {
+    case byWorkdays = "By working days", equal = "Equally", advance = "Fixed advance"
     var id: Self { self }
 }
 
@@ -122,7 +127,11 @@ struct PaySettings {
     var secondDay = 25
     var lastPayday = Date()
     var shift = WeekendShift.earlier
+    /// A month's salary for monthly schedules; per payday or per day otherwise.
     var amount: Decimal = 0
+    var split = SplitKind.byWorkdays
+    var advance: Decimal = 0
+    var weekdaysOnly = true
 
     init() {}
 
@@ -134,11 +143,25 @@ struct PaySettings {
             frequency = days.count > 1 ? .twiceMonthly : .monthly
             firstDay = days.first ?? 10
             secondDay = days.dropFirst().first ?? 25
+            // Older budgets stored the amount per payday.
+            if !income.isMonthly { amount = income.expected * Decimal(days.count); split = .equal }
         case .everyWeeks(let weeks, let from):
             frequency = weeks == 1 ? .weekly : .biweekly
             lastPayday = from
+        case .daily(let weekdays):
+            frequency = .daily
+            weekdaysOnly = weekdays
+        }
+        if income.isMonthly {
+            switch income.split {
+            case .equal: split = .equal
+            case .byWorkdays: split = .byWorkdays
+            case .advance(let a): split = .advance; advance = a
+            }
         }
     }
+
+    var isMonthly: Bool { frequency == .twiceMonthly || frequency == .monthly }
 
     func apply(to income: inout Income) {
         income.schedule = switch frequency {
@@ -146,9 +169,16 @@ struct PaySettings {
         case .monthly: .monthly(days: [firstDay])
         case .biweekly: .everyWeeks(2, from: lastPayday)
         case .weekly: .everyWeeks(1, from: lastPayday)
+        case .daily: .daily(weekdaysOnly: weekdaysOnly)
         }
         income.shift = shift
         income.expected = amount
+        income.isMonthly = isMonthly
+        income.split = switch split {
+        case .equal: .equal
+        case .byWorkdays: .byWorkdays
+        case .advance: .advance(advance)
+        }
     }
 }
 
@@ -182,7 +212,7 @@ struct PayEditor: View {
 
     var body: some View {
         if showsTitle {
-            StepTitle("When do you get paid?", "Start with your main pay. If it varies, use a typical amount — you'll enter the real one when it arrives.")
+            StepTitle("When do you get paid?", "Enter your usual salary. When pay comes in different from it — sick leave, holidays, a bonus — you'll enter the real amount and the plan adjusts.")
         }
         Field("How often") {
             Picker("How often", selection: $pay.frequency) {
@@ -194,25 +224,62 @@ struct PayEditor: View {
         HStack(alignment: .top, spacing: 16) {
             switch pay.frequency {
             case .twiceMonthly:
-                Field("First payday") { DayPicker(day: $pay.firstDay) }
-                Field("Second payday") { DayPicker(day: $pay.secondDay) }
+                Field("First payday") { DayPicker(day: $pay.firstDay) }.frame(width: 120, alignment: .leading)
+                Field("Second payday") { DayPicker(day: $pay.secondDay) }.frame(width: 120, alignment: .leading)
             case .monthly:
-                Field("Payday") { DayPicker(day: $pay.firstDay) }
+                Field("Payday") { DayPicker(day: $pay.firstDay) }.frame(width: 120, alignment: .leading)
             case .biweekly, .weekly:
                 Field("Last payday") {
                     DateField(date: $pay.lastPayday, range: .distantPast ... Date())
                 }
+                .frame(width: 210, alignment: .leading)
+            case .daily:
+                EmptyView()
             }
-            Field("Each payday", hint: "After tax") { AmountField(amount: $pay.amount, currency: currency) }
+            Field(amountLabel, hint: "After tax") { AmountField(amount: $pay.amount, currency: currency) }
         }
-        Field("When payday falls on a weekend") {
-            Picker("Weekend", selection: $pay.shift) {
-                Text("Paid before").tag(WeekendShift.earlier)
-                Text("Paid after").tag(WeekendShift.later)
-                Text("Same day").tag(WeekendShift.none)
+        if pay.frequency == .twiceMonthly {
+            Field("How it's split", hint: splitHint) {
+                Picker("Split", selection: $pay.split) {
+                    ForEach(SplitKind.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            if pay.split == .advance {
+                Field("Advance") { AmountField(amount: $pay.advance, currency: currency) }.frame(width: 200, alignment: .leading)
+            }
+        }
+        if pay.frequency == .daily {
+            Toggle("Weekdays only", isOn: $pay.weekdaysOnly)
+            Text("HaluMe plans daily pay by the week: each Monday you see the week's bills and savings.")
+                .font(.callout).foregroundStyle(.secondary)
+        } else {
+            Field("When payday falls on a weekend") {
+                Picker("Weekend", selection: $pay.shift) {
+                    Text("Paid before").tag(WeekendShift.earlier)
+                    Text("Paid after").tag(WeekendShift.later)
+                    Text("Same day").tag(WeekendShift.none)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+        }
+    }
+
+    private var amountLabel: LocalizedStringKey {
+        switch pay.frequency {
+        case .twiceMonthly, .monthly: "Salary a month"
+        case .biweekly, .weekly: "Each payday"
+        case .daily: "Each day"
+        }
+    }
+
+    private var splitHint: LocalizedStringKey {
+        switch pay.split {
+        case .byWorkdays: "Each payday gets the share of working days in its half of the month, like most payrolls."
+        case .equal: "Half and half."
+        case .advance: "A fixed advance on the payday late in the month, the rest on the other one."
         }
     }
 }

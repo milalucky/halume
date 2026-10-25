@@ -179,6 +179,30 @@ check(periods[0].overspent == max(0, cushionPlanned - 2_000), "overspent")
 check(hp.group(periods, by: .month).count == 1 && hp.group(periods, by: .month)[0].income == 150_000, "grouped by month")
 check(hp.csv(periods).split(separator: "\n").count == 3, "csv rows")
 
+// Monthly salary split between two paydays: the 25th pays the first half, the 10th the rest of the month before.
+for split in [PaySplit.equal, .byWorkdays, .advance(70_000)] {
+    var monthlyBudget = budget
+    monthlyBudget.incomes = [Income(member: me.id, name: "Salary", schedule: .monthly(days: [10, 25]), expected: 200_000,
+                                    isMonthly: true, split: split)]
+    let mp = Planner(monthlyBudget, calendar: calendar)
+    let advance = mp.expected(of: me.id, on: d(2026, 10, 23)) // 25 Oct is a Sunday
+    let rest = mp.expected(of: me.id, on: d(2026, 11, 10))
+    check(advance + rest == 200_000 && advance > 0 && rest > 0, "\(split): \(advance) + \(rest) = 200 000")
+    if case .advance = split { check(advance == 70_000, "fixed advance") }
+    if case .byWorkdays = split {
+        // October 2026: 11 weekdays in the 1st–15th out of 22.
+        check(advance == 100_000, "advance by workdays (\(advance))")
+    }
+}
+
+// Daily pay, planned by the week from Monday.
+var dailyBudget = budget
+dailyBudget.incomes = [Income(member: me.id, name: "Shifts", schedule: .daily(weekdaysOnly: true), expected: 5_000)]
+let dailyPlanner = Planner(dailyBudget, calendar: calendar)
+check(dailyPlanner.paydays(of: me.id, from: d(2026, 10, 1), to: d(2026, 10, 31)) == [d(2026, 10, 5), d(2026, 10, 12), d(2026, 10, 19), d(2026, 10, 26)],
+      "daily pay planned on Mondays")
+check(dailyPlanner.expected(of: me.id, on: d(2026, 10, 19)) == 25_000, "five weekdays a week")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),
