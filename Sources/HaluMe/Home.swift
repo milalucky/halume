@@ -47,6 +47,7 @@ struct PayBanner: View {
     let expected: Decimal
     let date: Date
     let currency: String
+    var weekly = false
     let action: () -> Void
 
     var body: some View {
@@ -55,8 +56,10 @@ struct PayBanner: View {
                 .font(.system(size: 26))
                 .foregroundStyle(Palette.orange)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Did your pay arrive?").font(.body.weight(.semibold))
-                Text("Expected \(expected.money(currency)) on \(date.formatted(.dateTime.day().month(.wide))). Enter the real amount to fix the plan.")
+                Text(weekly ? String(localized: "How much did you earn this week?") : String(localized: "Did your pay arrive?"))
+                    .font(.body.weight(.semibold))
+                Text(weekly ? String(localized: "Expected about \(expected.money(currency)). Enter the real amount at the end of the week to fix the plan.")
+                            : String(localized: "Expected \(expected.money(currency)) on \(date.formatted(.dateTime.day().month(.wide))). Enter the real amount to fix the plan."))
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

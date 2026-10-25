@@ -329,3 +329,5 @@
 "That's more than there is." = "Это больше, чем там есть.";
 "This week, from %@" = "Эта неделя, с %@";
 "New week tomorrow" = "Новая неделя завтра";
+"How much did you earn this week?" = "Сколько заработали за неделю?";
+"Expected about %@. Enter the real amount at the end of the week to fix the plan." = "Ожидается около %@. В конце недели введите настоящую сумму, и план пересчитается.";

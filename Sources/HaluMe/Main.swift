@@ -142,7 +142,7 @@ struct TodayPage: View {
                     Hero(allowance: allowance, start: start, currency: budget.currency,
                          note: balanceNote(budget: budget, me: me, start: start), weekly: budget.plansByWeek)
                     if record?.actual == nil {
-                        PayBanner(expected: planner.expected(of: me, on: start), date: start, currency: budget.currency) {
+                        PayBanner(expected: planner.expected(of: me, on: start), date: start, currency: budget.currency, weekly: budget.plansByWeek) {
                             store.sheet = .pay
                         }
                     }
