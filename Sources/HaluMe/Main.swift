@@ -40,6 +40,7 @@ struct MainView: View {
                 case .payoff(let id): PayoffSheet(debtID: id)
                 case .subscription(let sub): SubscriptionEditor(subscription: sub)
                 case .withdraw(let id): WithdrawSheet(envelopeID: id)
+                case .timeOff: TimeOffSheet()
                 }
             }
             .environment(store)
@@ -132,6 +133,7 @@ struct TodayPage: View {
 
     var body: some View {
         Page(title: "Today") {
+            IconButton(icon: "airplane", label: "Vacation and sick leave") { store.sheet = .timeOff }
             IconButton(icon: "creditcard", label: "Check balance") { store.sheet = .balance }
             IconButton(icon: "slider.horizontal.3", label: "Edit plan") { store.sheet = .plan }
         } content: {
@@ -180,10 +182,28 @@ private struct ComingUp: View {
             guard let next = planner.nextInterest(of: envelope, from: today), next.date <= week, next.amount > 0 else { return nil }
             return (envelope, next.date, next.amount)
         }
-        if !items.isEmpty || !interest.isEmpty {
+        let me = budget.members.first?.id ?? UUID()
+        let arrivals = planner.extras(of: me, from: today, to: week)
+        if !items.isEmpty || !interest.isEmpty || !arrivals.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Coming up this week").font(.headline)
                 VStack(spacing: 0) {
+                    ForEach(Array(arrivals.enumerated()), id: \.offset) { _, arrival in
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.down")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Palette.green)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(Palette.green.opacity(0.15)))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(arrival.kind.title)
+                                Text(arrival.date.relativeDay).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("+" + arrival.amount.money(budget.currency)).monospacedDigit().foregroundStyle(Palette.green)
+                        }
+                        .padding(.vertical, 8)
+                    }
                     ForEach(interest, id: \.0.id) { envelope, date, amount in
                         HStack(spacing: 12) {
                             Image(systemName: "percent")

@@ -350,3 +350,37 @@
 "Show on" = "Показать";
 "Hidden until %@" = "Скрыто до %@";
 "Hidden from your partner" = "Скрыто от партнёра";
+
+/* Time off and work calendar */
+"Covers a smaller payday" = "Закроет меньшую зарплату";
+"Kept from the last pay" = "Отложено с прошлой зарплаты";
+"For this smaller payday" = "На эту меньшую зарплату";
+"Keep for %@" = "Оставить на %@";
+"Holidays" = "Праздники";
+"Weekends only" = "Только выходные";
+"Loading holidays…" = "Загружаю праздники…";
+"Couldn't load the holidays. Check the connection and pick the country again." = "Не удалось загрузить праздники. Проверьте интернет и выберите страну ещё раз.";
+"Production calendar with moved days off, %@." = "Производственный календарь с переносами, %@.";
+"Public holidays, %@." = "Государственные праздники, %@.";
+"Paydays move only off weekends, and holidays don't change the advance." = "Выплаты переносятся только с выходных, праздники на аванс не влияют.";
+"Time off" = "Отпуск и больничные";
+"Vacation pay comes early and the next paydays get smaller; sick pay comes later. HaluMe plans for both." = "Отпускные приходят заранее, а следующие зарплаты становятся меньше; больничные — позже. HaluMe учитывает и то и другое.";
+"First day" = "Первый день";
+"Last day" = "Последний день";
+"Paid" = "Оплата";
+"By your insurance record" = "По страховому стажу";
+"Tip: pick your country's holidays in Settings for exact days." = "Совет: выберите в настройках праздники своей страны, чтобы дни считались точно.";
+"Vacation pay about %@ on %@" = "Отпускные около %@ — %@";
+"First 3 days of sick pay, about %@, with the %@ pay" = "Первые 3 дня больничного, около %@, придут с зарплатой %@";
+"The rest of sick pay, about %@, from the Social Fund around %@" = "Остальной больничный, около %@, от Соцфонда примерно %@";
+"Pay on %@: about %@ instead of %@" = "Зарплата %@: около %@ вместо %@";
+"Vacation" = "Отпуск";
+"Sick leave" = "Больничный";
+"Unpaid leave" = "За свой счёт";
+"Vacation pay" = "Отпускные";
+"Sick pay from work" = "Больничный от работодателя";
+"Sick pay from the Social Fund" = "Больничный от Соцфонда";
+"Vacation and sick leave" = "Отпуск и больничные";
+"Vacation and Sick Leave…" = "Отпуск и больничные…";
+"Work calendar" = "Рабочий календарь";
+"Holidays and moved days off" = "Праздники и переносы";

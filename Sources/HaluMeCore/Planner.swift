@@ -121,11 +121,15 @@ public struct Planner: Sendable {
 
     func pay(of income: Income, on date: Date, absences: Bool) -> Decimal {
         let date = day(date)
-        // Share of working days actually worked in [from, to].
-        func worked(_ from: Date, _ to: Date) -> Decimal {
+        // Working days in [from, to] and how many of them were worked.
+        func span(_ from: Date, _ to: Date) -> (worked: Int, all: Int) {
             let all = workdayCount(from, to)
-            guard absences, all > 0 else { return 1 }
-            return Decimal(all - absentWorkdays(of: income.member, from, to)) / Decimal(all)
+            return (absences ? all - absentWorkdays(of: income.member, from, to) : all, all)
+        }
+        // amount × worked / all, multiplied before dividing so whole sums stay whole.
+        func part(_ amount: Decimal, _ d: (worked: Int, all: Int), over total: Int? = nil) -> Decimal {
+            let den = total ?? d.all
+            return den > 0 ? down(amount * Decimal(d.worked) / Decimal(den)) : amount
         }
         switch income.schedule {
         case .daily(let weekdaysOnly):
@@ -134,7 +138,7 @@ public struct Planner: Sendable {
                 .filter { d in !absences || !isAbsent(income.member, on: d) }
             return income.expected * Decimal(days.count)
         case .everyWeeks(let weeks, _):
-            return down(income.expected * worked(add(-7 * max(weeks, 1), to: date)!, add(-1, to: date)!))
+            return part(income.expected, span(add(-7 * max(weeks, 1), to: date)!, add(-1, to: date)!))
         case .monthly(let days):
             guard income.isMonthly else { return income.expected }
             // Which nominal day was moved onto this date by the weekend and holiday rule.
@@ -143,7 +147,7 @@ public struct Planner: Sendable {
             guard days.count == 2 else {
                 // One payday a month pays the month before.
                 let (start, end) = monthBounds(calendar.date(byAdding: .month, value: -1, to: nominal)!)
-                return down(income.expected * worked(start, end))
+                return part(income.expected, span(start, end))
             }
             // A payday late in the month pays the first half of that month (the advance);
             // an early one pays the rest of the month before.
@@ -151,13 +155,13 @@ public struct Planner: Sendable {
             let month = firstHalf ? nominal : calendar.date(byAdding: .month, value: -1, to: nominal)!
             let (start, end) = monthBounds(month)
             let mid = add(14, to: start)!
+            let firstDays = span(start, mid), wholeMonth = span(start, end)
             let advance: Decimal = switch income.split {
-            case .equal: down(income.expected / 2 * worked(start, mid))
-            case .advance(let amount): down(min(amount, income.expected) * worked(start, mid))
-            case .byWorkdays:
-                down(income.expected * Decimal(workdayCount(start, mid)) / Decimal(max(workdayCount(start, end), 1)) * worked(start, mid))
+            case .equal: part(income.expected, firstDays, over: firstDays.all * 2)
+            case .advance(let amount): part(min(amount, income.expected), firstDays)
+            case .byWorkdays: part(income.expected, firstDays, over: wholeMonth.all)
             }
-            let earned = down(income.expected * worked(start, end))
+            let earned = part(income.expected, wholeMonth)
             return firstHalf ? advance : max(0, earned - advance)
         }
     }

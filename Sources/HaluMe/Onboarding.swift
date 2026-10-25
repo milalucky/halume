@@ -24,7 +24,11 @@ struct OnboardingView: View {
                     Group {
                         switch step {
                         case 0: WelcomeStep(draft: $draft)
-                        case 1: PayEditor(pay: $draft.pay, currency: draft.currency)
+                        case 1:
+                            PayEditor(pay: $draft.pay, currency: draft.currency)
+                            if draft.pay.frequency != .daily {
+                                Field("Holidays and moved days off") { WorkCalendarPicker(calendar: $draft.workCalendar) }
+                            }
                         case 2: BillsEditor(bills: $draft.bills, currency: draft.currency, member: draft.member)
                         case 3: SavingsEditor(envelopes: $draft.envelopes, currency: draft.currency, member: draft.member)
                         default: PreviewStep(budget: draft.budget())
@@ -79,6 +83,7 @@ struct Draft {
     var bills: [Bill] = []
     var envelopes: [Envelope] = []
     var member = UUID()
+    var workCalendar: WorkCalendar? = Locale.current.region?.identifier == "RU" ? .russia : nil
 
     init() {}
 
@@ -90,17 +95,20 @@ struct Draft {
         bills = budget.bills
         envelopes = budget.envelopes
         member = budget.members[0].id
+        workCalendar = budget.workCalendar
     }
 
     func budget() -> Budget {
         let name = name.trimmingCharacters(in: .whitespaces)
         var income = Income(member: member, name: "Salary", schedule: .monthly(days: [10]), expected: 0)
         pay.apply(to: &income)
-        return Budget(
-            name: name.isEmpty ? "My budget" : name, currency: currency,
-            members: [Member(id: member, name: name.isEmpty ? "Me" : name)],
+        var budget = Budget(
+            name: name.isEmpty ? String(localized: "My budget") : name, currency: currency,
+            members: [Member(id: member, name: name.isEmpty ? String(localized: "Me") : name)],
             incomes: [income], bills: bills.cleaned, envelopes: envelopes.cleaned
         )
+        budget.workCalendar = workCalendar
+        return budget
     }
 }
 

@@ -12,6 +12,11 @@ struct SettingsView: View {
         Form {
             HouseholdSection()
             SwiftUI.Section {
+                WorkCalendarPicker(calendar: Binding(get: { store.budget?.workCalendar }, set: { store.budget?.workCalendar = $0 }))
+            } header: {
+                Text("Work calendar")
+            }
+            SwiftUI.Section {
                 Toggle("On payday", isOn: ask($payday))
                 Toggle("The day before bills and debt payments", isOn: ask($bills))
                 Toggle("Before subscription charges and when a free trial ends", isOn: ask($subscriptions))

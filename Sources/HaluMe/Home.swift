@@ -99,6 +99,17 @@ struct PlanList: View {
             }
             .padding(.bottom, 10)
 
+            ForEach(Array(plan.extras.enumerated()), id: \.offset) { _, arrival in
+                Divider().opacity(0.6)
+                IncomeRow(icon: "arrow.down.circle", title: Text(arrival.kind.title),
+                          detail: Text(arrival.date.formatted(.dateTime.day().month(.wide))), amount: arrival.amount, currency: currency)
+            }
+            if plan.carriedIn > 0 {
+                Divider().opacity(0.6)
+                IncomeRow(icon: "arrow.uturn.forward", title: Text("Kept from the last pay"),
+                          detail: Text("For this smaller payday"), amount: plan.carriedIn, currency: currency)
+            }
+
             ForEach(plan.lines, id: \.target) { line in
                 Divider().opacity(0.6)
                 row(line)
@@ -143,7 +154,8 @@ struct PlanList: View {
                     .frame(width: 24)
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(line.name).strikethrough(done, color: .secondary).foregroundStyle(done ? .secondary : .primary)
+                Text(line.target == .carry ? String(localized: "Keep for \(plan.next.formatted(.dateTime.day().month(.wide)))") : line.name)
+                    .strikethrough(done, color: .secondary).foregroundStyle(done ? .secondary : .primary)
                 Text(line.target.kind).font(.caption).foregroundStyle(.tertiary)
             }
             Spacer()
@@ -178,6 +190,7 @@ extension Target {
         case .envelope: "Savings"
         case .debt: "Debt payment"
         case .subscription: "Subscription"
+        case .carry: "Covers a smaller payday"
         case .free: "Yours to spend"
         }
     }
@@ -188,7 +201,31 @@ extension Target {
         case .envelope: "arrow.down.to.line"
         case .debt: "creditcard"
         case .subscription: "repeat"
+        case .carry: "arrow.uturn.forward"
         case .free: "sun.max"
         }
+    }
+}
+
+/// Money coming in within a period, apart from the payday itself.
+private struct IncomeRow: View {
+    let icon: String
+    let title: Text
+    let detail: Text
+    let amount: Decimal
+    let currency: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).foregroundStyle(Palette.green).frame(width: 24)
+            VStack(alignment: .leading, spacing: 1) {
+                title
+                detail.font(.caption).foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Text("+" + amount.money(currency)).monospacedDigit().foregroundStyle(Palette.green)
+        }
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
     }
 }

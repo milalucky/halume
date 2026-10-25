@@ -39,6 +39,8 @@ struct HaluMeApp: App {
                     .keyboardShortcut("b")
                 Button("Edit Plan…") { store.sheet = .plan }
                     .keyboardShortcut("e")
+                Button("Vacation and Sick Leave…") { store.sheet = .timeOff }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
                 Button("Take Money Out…") {
                     if let first = store.budget?.envelopes.first { store.sheet = .withdraw(first.id) }
                 }

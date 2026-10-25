@@ -8,6 +8,7 @@ enum Sheet: Identifiable, Hashable {
     case payoff(UUID)
     case subscription(Subscription)
     case withdraw(UUID)
+    case timeOff
 
     var id: String {
         switch self {
@@ -18,6 +19,7 @@ enum Sheet: Identifiable, Hashable {
         case .payoff(let id): "payoff-\(id)"
         case .subscription(let s): "subscription-\(s.id)"
         case .withdraw(let id): "withdraw-\(id)"
+        case .timeOff: "time-off"
         }
     }
 
@@ -31,6 +33,7 @@ enum Sheet: Identifiable, Hashable {
         case "payoff": budget?.debts.first.map { .payoff($0.id) }
         case "subscription": budget?.subscriptions.first.map { .subscription($0) }
         case "withdraw": budget?.envelopes.first.map { .withdraw($0.id) }
+        case "timeoff": .timeOff
         default: nil
         }
     }
@@ -215,7 +218,7 @@ extension Budget {
         case .envelope(let id): envelopes.first { $0.id == id }?.name
         case .debt(let id): debts.first { $0.id == id }?.name
         case .subscription(let id): subscriptions.first { $0.id == id }?.name
-        case .free: nil
+        case .carry, .free: nil
         }
     }
 
