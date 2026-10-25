@@ -14,6 +14,8 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var subscriptions: [Subscription]
     public var withdrawals: [Withdrawal]
     public var absences: [Absence]
+    public var wishes: [Wish]
+    public var reservations: [Reservation]
     /// Holidays and moved days off for counting working days; nil means weekends only.
     public var workCalendar: WorkCalendar?
     public var paydays: [Payday]
@@ -26,7 +28,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         self.id = id; self.name = name; self.currency = currency; self.members = members
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
-        self.absences = []; self.workCalendar = nil
+        self.absences = []; self.workCalendar = nil; self.wishes = []; self.reservations = []
         self.paydays = paydays; self.checks = checks
     }
 
@@ -44,6 +46,8 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         subscriptions = try c.decodeIfPresent([Subscription].self, forKey: .subscriptions) ?? []
         withdrawals = try c.decodeIfPresent([Withdrawal].self, forKey: .withdrawals) ?? []
         absences = try c.decodeIfPresent([Absence].self, forKey: .absences) ?? []
+        wishes = try c.decodeIfPresent([Wish].self, forKey: .wishes) ?? []
+        reservations = try c.decodeIfPresent([Reservation].self, forKey: .reservations) ?? []
         workCalendar = try c.decodeIfPresent(WorkCalendar.self, forKey: .workCalendar)
         paydays = try c.decodeIfPresent([Payday].self, forKey: .paydays) ?? []
         checks = try c.decodeIfPresent([BalanceCheck].self, forKey: .checks) ?? []
@@ -357,4 +361,32 @@ public struct Subscription: Codable, Sendable, Hashable, Identifiable {
         self.anchor = anchor; self.trialEnds = trialEnds; self.isActive = isActive
         self.category = category; self.note = note; self.split = split
     }
+}
+
+/// Something someone wants: visible to the household, so a partner can gift it or the owner can save for it.
+public struct Wish: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var owner: UUID
+    public var name: String
+    public var price: Decimal
+    public var link: String
+    public var note: String
+    /// The savings envelope collecting money for it.
+    public var envelope: UUID?
+    /// Got it (bought or received).
+    public var isDone: Bool
+
+    public init(id: UUID = UUID(), owner: UUID, name: String, price: Decimal = 0, link: String = "", note: String = "",
+                envelope: UUID? = nil, isDone: Bool = false) {
+        self.id = id; self.owner = owner; self.name = name; self.price = price; self.link = link; self.note = note
+        self.envelope = envelope; self.isDone = isDone
+    }
+}
+
+/// "I'll gift this": kept only by the giver, so the wish's owner never sees it.
+public struct Reservation: Codable, Sendable, Hashable {
+    public var wish: UUID
+    public var by: UUID
+
+    public init(wish: UUID, by: UUID) { self.wish = wish; self.by = by }
 }

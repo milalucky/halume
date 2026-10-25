@@ -9,6 +9,7 @@ enum Sheet: Identifiable, Hashable {
     case subscription(Subscription)
     case withdraw(UUID)
     case timeOff
+    case wish(Wish)
 
     var id: String {
         switch self {
@@ -20,6 +21,7 @@ enum Sheet: Identifiable, Hashable {
         case .subscription(let s): "subscription-\(s.id)"
         case .withdraw(let id): "withdraw-\(id)"
         case .timeOff: "time-off"
+        case .wish(let w): "wish-\(w.id)"
         }
     }
 
@@ -34,13 +36,14 @@ enum Sheet: Identifiable, Hashable {
         case "subscription": budget?.subscriptions.first.map { .subscription($0) }
         case "withdraw": budget?.envelopes.first.map { .withdraw($0.id) }
         case "timeoff": .timeOff
+        case "wish": budget?.wishes.first.map { .wish($0) }
         default: nil
         }
     }
 }
 
 enum Section: String, CaseIterable, Identifiable {
-    case today, savings, debts, subscriptions, stats
+    case today, savings, debts, subscriptions, wishlist, stats
     var id: Self { self }
 }
 
@@ -180,6 +183,44 @@ final class BudgetStore {
         budget?.withdrawals.append(Withdrawal(envelope: envelope, amount: amount, note: note))
     }
 
+    func save(_ wish: Wish) {
+        guard var budget else { return }
+        if let i = budget.wishes.firstIndex(where: { $0.id == wish.id }) { budget.wishes[i] = wish } else { budget.wishes.append(wish) }
+        self.budget = budget
+    }
+
+    func deleteWish(_ id: UUID) {
+        budget?.wishes.removeAll { $0.id == id }
+        budget?.reservations.removeAll { $0.wish == id }
+    }
+
+    /// Creates a goal for the wish: its price in six months, first in line after existing savings.
+    func startSaving(for wish: Wish) {
+        guard var budget, let me, let i = budget.wishes.firstIndex(where: { $0.id == wish.id }) else { return }
+        let envelope = Envelope(owner: .member(me), name: wish.name,
+                                goal: .target(wish.price, by: Calendar.current.date(byAdding: .month, value: 6, to: Date())!),
+                                priority: (budget.envelopes.map(\.priority).max() ?? -1) + 1)
+        budget.envelopes.append(envelope)
+        budget.wishes[i].envelope = envelope.id
+        self.budget = budget
+    }
+
+    func markGot(_ wish: Wish) {
+        guard var budget, let i = budget.wishes.firstIndex(where: { $0.id == wish.id }) else { return }
+        budget.wishes[i].isDone = true
+        self.budget = budget
+    }
+
+    func toggleReservation(_ wish: Wish) {
+        guard var budget, let me else { return }
+        if budget.reservations.contains(where: { $0.wish == wish.id && $0.by == me }) {
+            budget.reservations.removeAll { $0.wish == wish.id && $0.by == me }
+        } else {
+            budget.reservations.append(Reservation(wish: wish.id, by: me))
+        }
+        self.budget = budget
+    }
+
     func deleteSubscription(_ id: UUID) {
         budget?.subscriptions.removeAll { $0.id == id }
     }
@@ -308,6 +349,10 @@ enum Demo {
                 Subscription(owner: .member(me.id), name: String(localized: "Gym"), amount: 3_500, anchor: day(8), isActive: false, category: "Other"),
             ]
         )
+        budget.wishes = [
+            Wish(owner: me.id, name: "iPhone Duo", price: 149_990, link: "https://www.apple.com/iphone/", note: String(localized: "Black, 256 GB")),
+            Wish(owner: me.id, name: String(localized: "Running shoes"), price: 12_900),
+        ]
         addHistory(to: &budget, member: me.id, before: today)
         let planner = Planner(budget)
         if let start = planner.current(on: today, of: me.id) {

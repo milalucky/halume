@@ -225,6 +225,12 @@ let back = Budget.merged(shared: shared, private: mine)
 check(Set(back.envelopes.map(\.id)) == Set(family.envelopes.map(\.id)) && Set(back.paydays[0].allocations) == Set(giftPay.allocations)
       && back.withdrawals == family.withdrawals, "merging gives the whole budget back")
 check(family.sharedPart(at: d(2027, 3, 8)).envelopes.contains { $0.id == gift.id }, "revealed on the date")
+let wantedPhone = Wish(owner: partner.id, name: "iPhone", price: 150_000)
+family.wishes = [wantedPhone]
+family.reservations = [Reservation(wish: wantedPhone.id, by: me.id)]
+check(family.sharedPart(at: d(2026, 11, 1)).wishes == [wantedPhone] && family.sharedPart(at: d(2026, 11, 1)).reservations.isEmpty,
+      "wishes shared, who gifts them not")
+check(family.privatePart(of: me.id, at: d(2026, 11, 1)).reservations.count == 1, "the giver keeps the reservation")
 
 // Russia's production calendar: January holidays shrink the advance and move paydays back.
 var ru = budget

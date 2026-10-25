@@ -19,6 +19,8 @@ extension Budget {
     public func sharedPart(at date: Date) -> Budget {
         let hidden = hiddenEnvelopes(at: date)
         var part = self
+        // Who gifts what stays with the giver.
+        part.reservations = []
         part.envelopes.removeAll { hidden.contains($0.id) }
         part.withdrawals.removeAll { hidden.contains($0.envelope) }
         part.paydays = paydays.map { payday in
@@ -35,6 +37,7 @@ extension Budget {
         var part = Budget(id: id, name: name, currency: currency, members: [])
         part.envelopes = envelopes.filter { mine.contains($0.id) }
         part.withdrawals = withdrawals.filter { mine.contains($0.envelope) }
+        part.reservations = reservations.filter { $0.by == member }
         part.paydays = paydays.compactMap { payday in
             var p = payday
             p.allocations = payday.allocations.filter { if case .envelope(let id) = $0.target { mine.contains(id) } else { false } }
@@ -48,6 +51,7 @@ extension Budget {
         var budget = shared
         budget.envelopes += part.envelopes.filter { e in !shared.envelopes.contains { $0.id == e.id } }
         budget.withdrawals += part.withdrawals.filter { w in !shared.withdrawals.contains { $0.id == w.id } }
+        budget.reservations += part.reservations.filter { !shared.reservations.contains($0) }
         for payday in part.paydays {
             if let i = budget.paydays.firstIndex(where: { $0.id == payday.id }) {
                 let known = Set(budget.paydays[i].allocations.map(\.target))

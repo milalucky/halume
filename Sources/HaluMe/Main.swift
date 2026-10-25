@@ -25,6 +25,7 @@ struct MainView: View {
                 case .savings: SavingsPage()
                 case .debts: DebtsPage()
                 case .subscriptions: SubscriptionsPage()
+                case .wishlist: WishlistPage()
                 case .stats: StatsPage()
                 }
             }
@@ -41,6 +42,7 @@ struct MainView: View {
                 case .subscription(let sub): SubscriptionEditor(subscription: sub)
                 case .withdraw(let id): WithdrawSheet(envelopeID: id)
                 case .timeOff: TimeOffSheet()
+                case .wish(let wish): WishEditor(wish: wish)
                 }
             }
             .environment(store)
@@ -61,6 +63,7 @@ extension Section {
         case .savings: "Savings"
         case .debts: "Debts"
         case .subscriptions: "Subscriptions"
+        case .wishlist: "Wishlist"
         case .stats: "Stats"
         }
     }
@@ -71,6 +74,7 @@ extension Section {
         case .savings: "tray.full"
         case .debts: "creditcard"
         case .subscriptions: "repeat"
+        case .wishlist: "gift"
         case .stats: "chart.bar.xaxis"
         }
     }

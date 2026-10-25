@@ -22,16 +22,24 @@ Plan money once per payday instead of logging every expense. Few people keep log
 - **Leftover**: the pay sheet asks (optionally) what was left from the last pay; stats use it to show overspending without logging expenses.
 - **Stats**: month / 6 months / year / 5 years; income vs expected, where pay went, saved vs taken out, "worth noticing" moments; CSV export.
 - **Reminders** (Settings, ⌘,): payday, the day before bills/debt payments, subscription charges, two days before a trial ends. Local notifications only.
+- **Work calendar** (`WorkCalendar`): weekends only, or a country's holidays. Russia 2025–2027 is built in (xmlcalendar.ru: moved days off, working Saturdays); Russia/Belarus/Kazakhstan/Uzbekistan production calendars and other countries' public holidays (date.nager.at) download for the current and next year. Paydays on a day off move to the working day before (Labour Code art. 136); the advance counts working days.
+- **Pay**: monthly salary split between two paydays by working days (default), equally or with a fixed advance; per payday for weekly pay; per day for daily pay (planned by the week from Monday). The late-month payday pays the first half of that month, the early one the rest of the month before.
+- **Time off** (`Absence`): vacation, sick leave (60/80/100%), unpaid. Paydays shrink by missed working days. Vacation pay arrives 3 days ahead (month / 29.3 × calendar days, public holidays excluded); sick pay: 3 days from the employer with the next payday, the rest from the Social Fund ~14 days after. Shortcuts: average earnings from the current salary, no caps.
+- **Kept money** (`Target.carry`): a period with extra money (vacation pay) keeps what the next up to three paydays will lack and passes it on, so "a day" stays even.
+- **Wishlist** (`Wish`): wishes are shared with the household; "Save for it" creates a target envelope; "I'll gift this" (`Reservation`) stays with the giver only.
 - **No** expense logging and no bank connections.
 
 ## Households
 
-One model for a single person, a fully shared or a partly shared budget. Every income belongs to a member; bills, debts, subscriptions and envelopes are owned by a member or shared and split equally, by income, by weights, or paid by one member. The UI shows one member for now; sharing comes with CloudKit.
+One model for a single person, a fully shared or a partly shared budget. Every income belongs to a member; bills, debts, subscriptions and envelopes are owned by a member or shared and split equally, by income, by weights, or paid by one member. Settings → Household adds a partner (name, optional monthly income for "by income"). The member using a device is remembered per budget (`me.<budget id>` in UserDefaults). An envelope can be hidden from the partner, optionally until a date (a gift).
+
+`Budget.sharedPart(at:)` / `privatePart(of:at:)` / `merged(shared:private:)` (HaluMeCore/Household.swift) define sync: hidden envelopes, money moved in and out of them, and gift reservations live only in their owner's private store; everything else is shared. Sync itself (CloudKit: private DB + shared zone with CKShare, no sign-in screen — the iCloud account is the identity) needs the paid Apple Developer account. Android/Windows later means a Google sign-in and our own server (note: Russian personal data law 152-FZ wants Russian citizens' data stored in Russia; App Store requires Sign in with Apple next to Google).
 
 ## Code
 
 - `HaluMeCore`: Codable models (`Model.swift`; newer fields decode with defaults so old files load), the pure engine (`Planner.swift`) and `Stats.swift`. No UI, no storage. Shared by every platform.
 - `HaluMe`: the Mac app (SwiftUI). `BudgetStore` keeps the budget in `~/Library/Application Support/HaluMe/budget.json` (an unreadable file is moved aside, never overwritten). Sidebar sections: Today, Savings, Debts, Subscriptions, Stats.
+- Tests drive the real app too: `--data <folder>` keeps a test budget apart; key events posted to the process (CGEvent.postToPid) type like a person, accessibility clicks press buttons. Money fields must be checked by typing, not by setting AX values (SwiftUI ignores those).
 - `swift run money-check`: assert-based checks of the engine (no XCTest without full Xcode). Run after every engine change.
 - `scripts/build.sh [--install]` builds `build/HaluMe.app`. `scripts/icon/main.swift` renders the icon.
 - Demo mode for design checks and screenshots (nothing is saved): `HaluMe --demo [--dark|--light] [--section today|savings|debts|subscriptions|stats] [--sheet pay|balance|plan|debt|payoff|subscription|withdraw] [--step 0-4]`; add `-AppleLanguages "(ru)" -AppleLocale ru_RU` for Russian.
