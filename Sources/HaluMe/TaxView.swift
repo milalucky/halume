@@ -37,7 +37,9 @@ struct TaxFields: View {
                             .frame(width: 220, alignment: .leading)
                     }
                 }
-                Text("Federal and provincial tax, CPP and EI, 2026 rates.").font(.caption).foregroundStyle(.secondary)
+                Text(pay.region == "QC" ? "Federal tax with the Quebec abatement, Quebec tax, QPP, QPIP and EI, 2026 rates."
+                                        : "Federal and provincial tax, CPP and EI, 2026 rates.")
+                    .font(.caption).foregroundStyle(.secondary)
             case .unitedStates:
                 HStack(alignment: .top, spacing: 12) {
                     Field("State") {

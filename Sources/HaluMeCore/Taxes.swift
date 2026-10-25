@@ -68,39 +68,115 @@ public enum TaxRules {
         .init(upTo: 58_523, rate: dec("0.14")), .init(upTo: 117_045, rate: dec("0.205")), .init(upTo: 181_440, rate: dec("0.26")),
         .init(upTo: 258_482, rate: dec("0.29")), .init(upTo: nil, rate: dec("0.33")),
     ]
-    static let alberta: [Bracket] = [
-        .init(upTo: 61_200, rate: dec("0.08")), .init(upTo: 154_259, rate: dec("0.10")), .init(upTo: 185_111, rate: dec("0.12")),
-        .init(upTo: 246_813, rate: dec("0.13")), .init(upTo: 370_220, rate: dec("0.14")), .init(upTo: nil, rate: dec("0.15")),
+
+    /// A province's or territory's tax: brackets, basic personal amount (and its phase-down), credited at the lowest rate.
+    struct Province {
+        let brackets: [Bracket]
+        let bpa: Decimal
+        /// The amount shrinks to `low` between `from` and `to` of taxable income.
+        var phase: (from: Decimal, to: Decimal, low: Decimal)?
+    }
+
+    static func b(_ rows: [(Decimal?, String)]) -> [Bracket] { rows.map { Bracket(upTo: $0.0, rate: dec($0.1)) } }
+
+    // TaxTips.ca 2026 tables (Manitoba froze indexation from 2025).
+    static let provinces: [String: Province] = [
+        "AB": Province(brackets: b([(61_200, "0.08"), (154_259, "0.10"), (185_111, "0.12"), (246_813, "0.13"), (370_220, "0.14"), (nil, "0.15")]),
+                       bpa: 22_769),
+        "BC": Province(brackets: b([(50_363, "0.056"), (100_728, "0.077"), (115_648, "0.105"), (140_430, "0.1229"), (190_405, "0.147"),
+                                    (265_545, "0.168"), (nil, "0.205")]), bpa: 13_216),
+        "MB": Province(brackets: b([(47_000, "0.108"), (100_000, "0.1275"), (nil, "0.174")]), bpa: 15_780,
+                       phase: (200_000, 400_000, 0)),
+        "NB": Province(brackets: b([(52_333, "0.094"), (104_666, "0.14"), (193_861, "0.16"), (nil, "0.195")]), bpa: 13_664),
+        "NL": Province(brackets: b([(44_678, "0.087"), (89_354, "0.145"), (159_528, "0.158"), (223_340, "0.178"), (285_319, "0.198"),
+                                    (570_638, "0.208"), (1_141_275, "0.213"), (nil, "0.218")]), bpa: 13_094),
+        "NS": Province(brackets: b([(30_995, "0.0879"), (61_991, "0.1495"), (97_417, "0.1667"), (157_124, "0.175"), (nil, "0.21")]),
+                       bpa: 11_932),
+        "NT": Province(brackets: b([(53_003, "0.059"), (106_009, "0.086"), (172_346, "0.122"), (nil, "0.1405")]), bpa: 18_198),
+        "NU": Province(brackets: b([(55_801, "0.04"), (111_602, "0.07"), (181_439, "0.09"), (nil, "0.115")]), bpa: 19_659),
+        "ON": Province(brackets: b([(53_891, "0.0505"), (107_785, "0.0915"), (150_000, "0.1116"), (220_000, "0.1216"), (nil, "0.1316")]),
+                       bpa: 12_989),
+        "PE": Province(brackets: b([(33_928, "0.095"), (65_820, "0.1347"), (106_890, "0.166"), (142_250, "0.1762"), (200_000, "0.19"),
+                                    (nil, "0.20")]), bpa: 15_000),
+        "QC": Province(brackets: b([(54_345, "0.14"), (108_680, "0.19"), (132_245, "0.24"), (nil, "0.2575")]), bpa: 18_952),
+        "SK": Province(brackets: b([(54_532, "0.105"), (155_805, "0.125"), (nil, "0.145")]), bpa: 20_381),
+        // Yukon's amount follows the federal one, down to $14,829 between the federal 26% and 33% brackets.
+        "YT": Province(brackets: b([(58_523, "0.064"), (117_045, "0.09"), (181_440, "0.109"), (258_482, "0.128"), (500_000, "0.128"),
+                                    (nil, "0.15")]), bpa: 16_452, phase: (181_440, 258_482, 14_829)),
     ]
-    /// Provinces with built-in rules.
-    public static let canadaProvinces = ["AB"]
+    /// Provinces and territories with built-in rules.
+    public static var canadaProvinces: [String] { Array(provinces.keys) }
 
     public static let cppExemption: Decimal = 3_500, ympe: Decimal = 74_600, yampe: Decimal = 85_000
-    public static let cppRate: Decimal = dec("0.0595"), cppBaseRate: Decimal = dec("0.0495"), cpp2Rate: Decimal = dec("0.04")
-    public static let eiMax: Decimal = 68_900, eiRate: Decimal = dec("0.0163")
+    public static let cpp2Rate: Decimal = dec("0.04")
+    public static let eiMax: Decimal = 68_900
+    public static let qpipMax: Decimal = 103_000
 
-    /// CPP (first + second tier) and EI on earnings since January; `exemption` is the share of the $3,500 used so far.
-    public static func canadaContributions(yearToDate: Decimal, exemption: Decimal = cppExemption) -> (cpp: Decimal, cpp2: Decimal, ei: Decimal) {
+    /// Pension plan (CPP, or QPP in Quebec), its second tier, EI and Quebec's parental insurance.
+    public struct Contributions {
+        public var pension: Decimal, pension2: Decimal, ei: Decimal, qpip: Decimal
+        /// The part of `pension` credited against tax (the base plan); the rest is deducted from income.
+        public var pensionBase: Decimal
+        public var total: Decimal { pension + pension2 + ei + qpip }
+    }
+
+    /// Contributions on earnings since January; `exemption` is the share of the $3,500 used so far.
+    public static func canadaContributions(yearToDate: Decimal, province: String = "", exemption: Decimal = cppExemption) -> Contributions {
+        let quebec = province == "QC"
+        let rate = quebec ? dec("0.063") : dec("0.0595"), baseRate = quebec ? dec("0.053") : dec("0.0495")
         // Payroll stops at the year's maximum even while the exemption is still being spread.
-        let cpp = min(max(0, min(yearToDate, ympe) - exemption) * cppRate, (ympe - cppExemption) * cppRate)
-        let cpp2 = max(0, min(yearToDate, yampe) - ympe) * cpp2Rate
-        return (cpp, cpp2, min(yearToDate, eiMax) * eiRate)
+        let pension = min(max(0, min(yearToDate, ympe) - exemption) * rate, (ympe - cppExemption) * rate)
+        let pension2 = max(0, min(yearToDate, yampe) - ympe) * cpp2Rate
+        let ei = min(yearToDate, eiMax) * (quebec ? dec("0.013") : dec("0.0163"))
+        let qpip = quebec ? min(yearToDate, qpipMax) * dec("0.0043") : 0
+        return Contributions(pension: pension, pension2: pension2, ei: ei, qpip: qpip, pensionBase: pension * baseRate / rate)
     }
 
     /// Federal + provincial income tax on a year's employment income.
+    /// Shortcuts: only the basic credits; Ontario's low-income tax reduction and Quebec's employment deduction are left out.
     public static func canadaIncomeTax(annual: Decimal, province: String) -> Decimal {
-        let c = canadaContributions(yearToDate: annual)
-        let base = c.cpp * cppBaseRate / cppRate          // credited
-        let enhanced = c.cpp - base + c.cpp2               // deducted from income
+        let c = canadaContributions(yearToDate: annual, province: province)
+        let enhanced = c.pension - c.pensionBase + c.pension2     // deducted from income
         let taxable = max(0, annual - enhanced)
-        // The basic personal amount shrinks from $16,452 to $14,829 between the 26% and 33% brackets.
-        let bpaShare = min(1, max(0, (taxable - 181_440) / (258_482 - 181_440)))
-        let bpa: Decimal = 16_452 - (16_452 - 14_829) * bpaShare
-        let federal = max(0, progressive(taxable, canadaFederal) - dec("0.14") * (bpa + min(1_501, annual) + base + c.ei))
-        let provincial: Decimal = province == "AB"
-            ? max(0, progressive(taxable, alberta) - dec("0.08") * (22_769 + base + c.ei))
-            : 0
+        // The federal basic personal amount shrinks from $16,452 to $14,829 between the 26% and 33% brackets.
+        let federalBPA = phased(16_452, (181_440, 258_482, 14_829), taxable)
+        var federal = max(0, progressive(taxable, canadaFederal)
+            - dec("0.14") * (federalBPA + min(1_501, annual) + c.pensionBase + c.ei + c.qpip))
+        if province == "QC" { federal -= federal * dec("0.165") }  // Quebec abatement
+        guard let rules = provinces[province] else { return federal }
+        let lowest = rules.brackets[0].rate
+        let bpa = rules.phase.map { phased(rules.bpa, $0, taxable) } ?? rules.bpa
+        // Quebec credits only the basic amount; the others also credit the base pension plan and EI.
+        let credits = province == "QC" ? bpa : bpa + c.pensionBase + c.ei
+        var provincial = max(0, progressive(taxable, rules.brackets) - lowest * credits)
+        switch province {
+        case "ON":
+            provincial += max(0, provincial - 5_818) * dec("0.20") + max(0, provincial - 7_446) * dec("0.36")
+            provincial += ontarioHealthPremium(taxable)
+        case "BC":
+            // B.C. tax reduction: $690, less 3.56% of income over $25,570.
+            provincial = max(0, provincial - max(0, 690 - max(0, annual - 25_570) * dec("0.0356")))
+        default:
+            break
+        }
         return federal + provincial
+    }
+
+    static func phased(_ amount: Decimal, _ phase: (from: Decimal, to: Decimal, low: Decimal), _ income: Decimal) -> Decimal {
+        let share = min(1, max(0, (income - phase.from) / (phase.to - phase.from)))
+        return amount - (amount - phase.low) * share
+    }
+
+    /// Ontario Health Premium by taxable income (unchanged since 2004).
+    static func ontarioHealthPremium(_ income: Decimal) -> Decimal {
+        switch income {
+        case ..<20_000: 0
+        case ..<36_000: min(300, (income - 20_000) * dec("0.06"))
+        case ..<48_000: min(450, 300 + (income - 36_000) * dec("0.06"))
+        case ..<72_000: min(600, 450 + (income - 48_000) * dec("0.25"))
+        case ..<200_000: min(750, 600 + (income - 72_000) * dec("0.25"))
+        default: min(900, 750 + (income - 200_000) * dec("0.25"))
+        }
     }
 
     // MARK: United States 2026
@@ -156,9 +232,9 @@ extension Planner {
             let count = Decimal(paydaysPerYear(income, around: date))
             let done = Decimal(dates(of: income, from: calendar.date(from: calendar.dateComponents([.year], from: date))!, to: date).count)
             // The $3,500 CPP exemption is spread over the year's paydays.
-            let now = TaxRules.canadaContributions(yearToDate: before + gross, exemption: TaxRules.cppExemption * done / count)
-            let then = TaxRules.canadaContributions(yearToDate: before, exemption: TaxRules.cppExemption * (done - 1) / count)
-            let contributions = (now.cpp + now.cpp2 + now.ei) - (then.cpp + then.cpp2 + then.ei)
+            let now = TaxRules.canadaContributions(yearToDate: before + gross, province: setup.region, exemption: TaxRules.cppExemption * done / count)
+            let then = TaxRules.canadaContributions(yearToDate: before, province: setup.region, exemption: TaxRules.cppExemption * (done - 1) / count)
+            let contributions = now.total - then.total
             let incomeTax = annual > 0 ? TaxRules.canadaIncomeTax(annual: annual, province: setup.region) / annual * gross : 0
             let provincial = TaxRules.canadaProvinces.contains(setup.region) ? 0 : gross * setup.regionalRate / 100
             return up(max(0, contributions) + incomeTax + provincial)

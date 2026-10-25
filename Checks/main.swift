@@ -266,9 +266,24 @@ check(rp.expected(of: me.id, on: d(2026, 11, 10)) < rp.usual(of: me.id, on: d(20
 // Taxes, 2026.
 // Canada, Alberta, $100,000: CPP 4,646.45, EI 1,123.07, federal 13,301.60, Alberta 6,470.38 → about $74,458 a year after tax.
 let cppEI = TaxRules.canadaContributions(yearToDate: 100_000)
-check((cppEI.cpp * 100).rounded() == 423_045 && cppEI.cpp2 == 416 && (cppEI.ei * 100).rounded() == 112_307, "CPP and EI")
+check((cppEI.pension * 100).rounded() == 423_045 && cppEI.pension2 == 416 && (cppEI.ei * 100).rounded() == 112_307, "CPP and EI")
+let qc = TaxRules.canadaContributions(yearToDate: 120_000, province: "QC")
+check((qc.pension * 100).rounded() == 447_930 && (qc.ei * 100).rounded() == 89_570 && (qc.qpip * 100).rounded() == 44_290, "QPP, EI and QPIP in Quebec")
 let abTax = TaxRules.canadaIncomeTax(annual: 100_000, province: "AB")
 check(abs((abTax - Decimal(string: "19771.98")!).double) < 1, "Alberta + federal income tax (\(abTax))")
+// Provinces at $100,000, cross-checked with an independent Python calculation from the same tables
+// (federal 13,301.60 outside Quebec; Ontario includes surtax and the $750 health premium, B.C. its tax reduction).
+for (province, provincial) in [("ON", "6722.75"), ("BC", "5555.52"), ("SK", "8641.02"), ("MB", "9484.18"), ("NS", "12061.78")] {
+    let total = TaxRules.canadaIncomeTax(annual: 100_000, province: province)
+    check(abs((total - Decimal(string: "13301.60")! - Decimal(string: provincial)!).double) < 2, "\(province) at $100,000 (\(total))")
+}
+let quebecTax = TaxRules.canadaIncomeTax(annual: 100_000, province: "QC")
+check(quebecTax > 20_000 && quebecTax < 26_000, "Quebec in a sensible range (\(quebecTax))")
+for code in ["NB", "NL", "PE", "NT", "NU", "YT"] {
+    let total = TaxRules.canadaIncomeTax(annual: 100_000, province: code)
+    check(total > 15_000 && total < 25_000, "\(code) at $100,000 in range (\(total))")
+}
+
 // US single, $100,000, Texas: federal 13,170 + FICA 7,650.
 check(TaxRules.usFederalTax(annual: 100_000, married: false) == 13_170 && TaxRules.usFICA(yearToDate: 100_000) == 7_650, "US federal and FICA")
 check(TaxRules.usFICA(yearToDate: 300_000) == Decimal(184_500) * Decimal(string: "0.062")! + 300_000 * Decimal(string: "0.0145")! + 900, "Social Security cap, extra Medicare")
