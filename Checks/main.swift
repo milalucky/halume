@@ -263,6 +263,34 @@ check(sick.map(\.kind) == [.sickPayEmployer, .sickPayFund] && sick[0].date == d(
       "sick pay arrivals \(sick.map(\.date))")
 check(rp.expected(of: me.id, on: d(2026, 11, 10)) < rp.usual(of: me.id, on: d(2026, 11, 10)), "October's final pay is smaller")
 
+// Taxes, 2026.
+// Canada, Alberta, $100,000: CPP 4,646.45, EI 1,123.07, federal 13,301.60, Alberta 6,470.38 → about $74,458 a year after tax.
+let cppEI = TaxRules.canadaContributions(yearToDate: 100_000)
+check((cppEI.cpp * 100).rounded() == 423_045 && cppEI.cpp2 == 416 && (cppEI.ei * 100).rounded() == 112_307, "CPP and EI")
+let abTax = TaxRules.canadaIncomeTax(annual: 100_000, province: "AB")
+check(abs((abTax - Decimal(string: "19771.98")!).double) < 1, "Alberta + federal income tax (\(abTax))")
+// US single, $100,000, Texas: federal 13,170 + FICA 7,650.
+check(TaxRules.usFederalTax(annual: 100_000, married: false) == 13_170 && TaxRules.usFICA(yearToDate: 100_000) == 7_650, "US federal and FICA")
+check(TaxRules.usFICA(yearToDate: 300_000) == Decimal(184_500) * Decimal(string: "0.062")! + 300_000 * Decimal(string: "0.0145")! + 900, "Social Security cap, extra Medicare")
+// Russia: 250,000 a month passes 2.4 million in October; that payday's tax is 34,500 instead of 32,500.
+var taxed = budget
+taxed.paydays = []; taxed.bills = []; taxed.envelopes = []
+taxed.incomes = [Income(member: me.id, name: "Salary", schedule: .monthly(days: [10]), shift: .none, expected: 250_000,
+                        isMonthly: true, tax: TaxSetup(system: .russia))]
+let tp = Planner(taxed, calendar: calendar)
+check(tp.expected(of: me.id, on: d(2026, 9, 10)) == 217_500, "13% before the threshold (\(tp.expected(of: me.id, on: d(2026, 9, 10))))")
+check(tp.expected(of: me.id, on: d(2026, 10, 10)) == 215_500, "15% on the part above 2.4 million")
+check(tp.expected(of: me.id, on: d(2026, 11, 10)) == 212_500, "15% after it")
+// Canada, Alberta, $120,000 a year paid twice a month: CPP and EI stop partway, so later paydays are bigger.
+taxed.incomes = [Income(member: me.id, name: "Salary", schedule: .monthly(days: [15, 30]), shift: .earlier, expected: 10_000,
+                        isMonthly: true, split: .equal, tax: TaxSetup(system: .canada, region: "AB"))]
+let cp = Planner(taxed, calendar: calendar)
+let early = cp.expected(of: me.id, on: d(2026, 2, 13)), late = cp.expected(of: me.id, on: d(2026, 12, 15))
+let yearNet = cp.paydays(of: me.id, from: d(2026, 1, 1), to: d(2026, 12, 31)).reduce(Decimal(0)) { $0 + cp.expected(of: me.id, on: $1) }
+check(late > early, "CPP/EI maxed out later in the year (\(early) → \(late))")
+let expectedNet = 120_000 - TaxRules.canadaIncomeTax(annual: 120_000, province: "AB") - 4_646.45 - Decimal(string: "1123.07")!
+check(abs((yearNet - expectedNet).double) < 25, "a year's paydays add up to the annual after-tax pay (\(yearNet) vs \(expectedNet))")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),
@@ -283,6 +311,8 @@ print(failures == 0 ? "All checks passed" : "\(failures) checks failed")
 exit(failures == 0 ? 0 : 1)
 
 extension Decimal {
+    var double: Double { NSDecimalNumber(decimal: self).doubleValue }
+
     func rounded() -> Decimal {
         var value = self, result = Decimal()
         NSDecimalRound(&result, &value, 0, .down)

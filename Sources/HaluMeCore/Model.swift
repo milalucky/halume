@@ -107,12 +107,15 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
     /// `expected` is a monthly salary split between the paydays by `split`.
     public var isMonthly: Bool
     public var split: PaySplit
+    /// Set when `expected` is before tax: how tax is withheld.
+    public var tax: TaxSetup?
 
     public init(id: UUID = UUID(), member: UUID, name: String, schedule: Schedule,
-                shift: WeekendShift = .earlier, expected: Decimal, isMonthly: Bool = false, split: PaySplit = .equal) {
+                shift: WeekendShift = .earlier, expected: Decimal, isMonthly: Bool = false, split: PaySplit = .equal,
+                tax: TaxSetup? = nil) {
         self.id = id; self.member = member; self.name = name
         self.schedule = schedule; self.shift = shift; self.expected = expected
-        self.isMonthly = isMonthly; self.split = split
+        self.isMonthly = isMonthly; self.split = split; self.tax = tax
     }
 
     public init(from decoder: Decoder) throws {
@@ -125,6 +128,7 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
         expected = try c.decode(Decimal.self, forKey: .expected)
         isMonthly = try c.decodeIfPresent(Bool.self, forKey: .isMonthly) ?? false
         split = try c.decodeIfPresent(PaySplit.self, forKey: .split) ?? .equal
+        tax = try c.decodeIfPresent(TaxSetup.self, forKey: .tax)
     }
 }
 

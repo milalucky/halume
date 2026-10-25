@@ -1,0 +1,177 @@
+import Foundation
+
+/// How an income is taxed when it's entered before tax.
+public struct TaxSetup: Codable, Sendable, Hashable {
+    public enum System: String, Codable, Sendable, Hashable, CaseIterable {
+        /// Personal income tax, progressive, withheld cumulatively from January.
+        case russia
+        /// Federal tax + a province, CPP and EI.
+        case canada
+        /// Federal tax + a state, Social Security and Medicare.
+        case unitedStates
+        /// Anywhere else: the user's own withholding rate.
+        case flat
+    }
+
+    public var system: System
+    /// Province or state code ("AB", "TX"); one without built-in rules uses `regionalRate`.
+    public var region: String
+    /// US: married filing jointly (brackets for the couple).
+    public var married: Bool
+    /// A province's or state's rate, percent of gross, when it isn't built in.
+    public var regionalRate: Decimal
+    /// `.flat`: everything withheld, percent of gross.
+    public var flatRate: Decimal
+
+    public init(system: System, region: String = "", married: Bool = false, regionalRate: Decimal = 0, flatRate: Decimal = 0) {
+        self.system = system; self.region = region; self.married = married
+        self.regionalRate = regionalRate; self.flatRate = flatRate
+    }
+}
+
+/// 2026 rules. Shortcuts: no deductions or credits beyond the basic ones, and Canada/US income tax is spread
+/// evenly over the year (as payroll does), while capped contributions are counted payday by payday.
+public enum TaxRules {
+    /// Exact decimals: a fractional literal would go through Double and lose cents.
+    static func dec(_ s: String) -> Decimal { Decimal(string: s, locale: Locale(identifier: "en_US_POSIX"))! }
+
+    struct Bracket { let upTo: Decimal?; let rate: Decimal }
+
+    static func progressive(_ income: Decimal, _ brackets: [Bracket]) -> Decimal {
+        var tax: Decimal = 0, lower: Decimal = 0
+        for b in brackets {
+            let top = b.upTo ?? .greatestFiniteMagnitude
+            if income > lower { tax += (min(income, top) - lower) * b.rate }
+            lower = top
+            if income <= top { break }
+        }
+        return tax
+    }
+
+    // MARK: Russia (Tax Code art. 224, from 2025)
+
+    static let russia: [Bracket] = [
+        .init(upTo: 2_400_000, rate: dec("0.13")), .init(upTo: 5_000_000, rate: dec("0.15")), .init(upTo: 20_000_000, rate: dec("0.18")),
+        .init(upTo: 50_000_000, rate: dec("0.20")), .init(upTo: nil, rate: dec("0.22")),
+    ]
+
+    /// Income tax on income since January.
+    public static func russiaTax(yearToDate: Decimal) -> Decimal { progressive(yearToDate, russia) }
+
+    public static func russiaRate(yearToDate: Decimal) -> Decimal {
+        russia.first { $0.upTo.map { yearToDate < $0 } ?? true }?.rate ?? dec("0.22")
+    }
+
+    // MARK: Canada 2026
+
+    static let canadaFederal: [Bracket] = [
+        .init(upTo: 58_523, rate: dec("0.14")), .init(upTo: 117_045, rate: dec("0.205")), .init(upTo: 181_440, rate: dec("0.26")),
+        .init(upTo: 258_482, rate: dec("0.29")), .init(upTo: nil, rate: dec("0.33")),
+    ]
+    static let alberta: [Bracket] = [
+        .init(upTo: 61_200, rate: dec("0.08")), .init(upTo: 154_259, rate: dec("0.10")), .init(upTo: 185_111, rate: dec("0.12")),
+        .init(upTo: 246_813, rate: dec("0.13")), .init(upTo: 370_220, rate: dec("0.14")), .init(upTo: nil, rate: dec("0.15")),
+    ]
+    /// Provinces with built-in rules.
+    public static let canadaProvinces = ["AB"]
+
+    public static let cppExemption: Decimal = 3_500, ympe: Decimal = 74_600, yampe: Decimal = 85_000
+    public static let cppRate: Decimal = dec("0.0595"), cppBaseRate: Decimal = dec("0.0495"), cpp2Rate: Decimal = dec("0.04")
+    public static let eiMax: Decimal = 68_900, eiRate: Decimal = dec("0.0163")
+
+    /// CPP (first + second tier) and EI on earnings since January; `exemption` is the share of the $3,500 used so far.
+    public static func canadaContributions(yearToDate: Decimal, exemption: Decimal = cppExemption) -> (cpp: Decimal, cpp2: Decimal, ei: Decimal) {
+        // Payroll stops at the year's maximum even while the exemption is still being spread.
+        let cpp = min(max(0, min(yearToDate, ympe) - exemption) * cppRate, (ympe - cppExemption) * cppRate)
+        let cpp2 = max(0, min(yearToDate, yampe) - ympe) * cpp2Rate
+        return (cpp, cpp2, min(yearToDate, eiMax) * eiRate)
+    }
+
+    /// Federal + provincial income tax on a year's employment income.
+    public static func canadaIncomeTax(annual: Decimal, province: String) -> Decimal {
+        let c = canadaContributions(yearToDate: annual)
+        let base = c.cpp * cppBaseRate / cppRate          // credited
+        let enhanced = c.cpp - base + c.cpp2               // deducted from income
+        let taxable = max(0, annual - enhanced)
+        // The basic personal amount shrinks from $16,452 to $14,829 between the 26% and 33% brackets.
+        let bpaShare = min(1, max(0, (taxable - 181_440) / (258_482 - 181_440)))
+        let bpa: Decimal = 16_452 - (16_452 - 14_829) * bpaShare
+        let federal = max(0, progressive(taxable, canadaFederal) - dec("0.14") * (bpa + min(1_501, annual) + base + c.ei))
+        let provincial: Decimal = province == "AB"
+            ? max(0, progressive(taxable, alberta) - dec("0.08") * (22_769 + base + c.ei))
+            : 0
+        return federal + provincial
+    }
+
+    // MARK: United States 2026
+
+    static let usSingle: [Bracket] = [
+        .init(upTo: 12_400, rate: dec("0.10")), .init(upTo: 50_400, rate: dec("0.12")), .init(upTo: 105_700, rate: dec("0.22")),
+        .init(upTo: 201_775, rate: dec("0.24")), .init(upTo: 256_225, rate: dec("0.32")), .init(upTo: 640_600, rate: dec("0.35")), .init(upTo: nil, rate: dec("0.37")),
+    ]
+    static let usJoint: [Bracket] = [
+        .init(upTo: 24_800, rate: dec("0.10")), .init(upTo: 100_800, rate: dec("0.12")), .init(upTo: 211_400, rate: dec("0.22")),
+        .init(upTo: 403_550, rate: dec("0.24")), .init(upTo: 512_450, rate: dec("0.32")), .init(upTo: 768_700, rate: dec("0.35")), .init(upTo: nil, rate: dec("0.37")),
+    ]
+    /// States without a tax on wages.
+    public static let usNoIncomeTax = ["AK", "FL", "NV", "NH", "SD", "TN", "TX", "WA", "WY"]
+    public static let socialSecurityMax: Decimal = 184_500
+
+    public static func usFederalTax(annual: Decimal, married: Bool) -> Decimal {
+        progressive(max(0, annual - (married ? 32_200 : 16_100)), married ? usJoint : usSingle)
+    }
+
+    /// Social Security and Medicare on wages since January (the employer adds dec("0.9")% above $200,000).
+    public static func usFICA(yearToDate: Decimal) -> Decimal {
+        min(yearToDate, socialSecurityMax) * dec("0.062") + yearToDate * dec("0.0145") + max(0, yearToDate - 200_000) * dec("0.009")
+    }
+}
+
+extension Planner {
+    /// Gross pay of an income's earlier paydays this calendar year.
+    func grossBefore(_ income: Income, on date: Date) -> Decimal {
+        let start = calendar.date(from: calendar.dateComponents([.year], from: date))!
+        return dates(of: income, from: start, to: add(-1, to: date)!).reduce(0) { $0 + pay(of: income, on: $1, absences: true, gross: true) }
+    }
+
+    /// Paydays of an income in a year (for annual figures).
+    func paydaysPerYear(_ income: Income, around date: Date) -> Int {
+        max(1, dates(of: income, from: date, to: add(-1, to: yearLater(date))!).count)
+    }
+
+    /// What is withheld from one payday's gross pay.
+    public func tax(of income: Income, gross: Decimal, on date: Date) -> Decimal {
+        guard let setup = income.tax, gross > 0 else { return 0 }
+        let before = grossBefore(income, on: date)
+        let annual = income.isMonthly ? income.expected * 12 : income.expected * Decimal(paydaysPerYear(income, around: date))
+        switch setup.system {
+        case .russia:
+            return up(TaxRules.russiaTax(yearToDate: before + gross) - TaxRules.russiaTax(yearToDate: before))
+        case .canada:
+            let count = Decimal(paydaysPerYear(income, around: date))
+            let done = Decimal(dates(of: income, from: calendar.date(from: calendar.dateComponents([.year], from: date))!, to: date).count)
+            // The $3,500 CPP exemption is spread over the year's paydays.
+            let now = TaxRules.canadaContributions(yearToDate: before + gross, exemption: TaxRules.cppExemption * done / count)
+            let then = TaxRules.canadaContributions(yearToDate: before, exemption: TaxRules.cppExemption * (done - 1) / count)
+            let contributions = (now.cpp + now.cpp2 + now.ei) - (then.cpp + then.cpp2 + then.ei)
+            let incomeTax = annual > 0 ? TaxRules.canadaIncomeTax(annual: annual, province: setup.region) / annual * gross : 0
+            let provincial = TaxRules.canadaProvinces.contains(setup.region) ? 0 : gross * setup.regionalRate / 100
+            return up(max(0, contributions) + incomeTax + provincial)
+        case .unitedStates:
+            let fica = TaxRules.usFICA(yearToDate: before + gross) - TaxRules.usFICA(yearToDate: before)
+            let incomeTax = annual > 0 ? TaxRules.usFederalTax(annual: annual, married: setup.married) / annual * gross : 0
+            let state = TaxRules.usNoIncomeTax.contains(setup.region) ? 0 : gross * setup.regionalRate / 100
+            return up(fica + incomeTax + state)
+        case .flat:
+            return up(gross * setup.flatRate / 100)
+        }
+    }
+
+    /// The share of an amount kept after tax around a date, for extras like vacation pay.
+    func afterTaxShare(of member: UUID, on date: Date) -> Decimal {
+        guard let income = budget.incomes.first(where: { $0.member == member && $0.tax != nil }) else { return 1 }
+        let gross = income.expected
+        guard gross > 0 else { return 1 }
+        return 1 - tax(of: income, gross: gross, on: date) / gross
+    }
+}

@@ -119,7 +119,14 @@ public struct Planner: Sendable {
         pay(of: income, on: date, absences: false)
     }
 
-    func pay(of income: Income, on date: Date, absences: Bool) -> Decimal {
+    /// After tax when the income is entered before tax, unless `gross`.
+    func pay(of income: Income, on date: Date, absences: Bool, gross: Bool = false) -> Decimal {
+        let amount = grossPay(of: income, on: date, absences: absences)
+        guard income.tax != nil, !gross else { return amount }
+        return amount - tax(of: income, gross: amount, on: date)
+    }
+
+    func grossPay(of income: Income, on date: Date, absences: Bool) -> Decimal {
         let date = day(date)
         // Working days in [from, to] and how many of them were worked.
         func span(_ from: Date, _ to: Date) -> (worked: Int, all: Int) {
@@ -252,11 +259,12 @@ public struct Planner: Sendable {
                     if !(budget.workCalendar?.isVacationHoliday(d, calendar: calendar) ?? false) { days += 1 }
                     d = add(1, to: d)!
                 }
-                out.append(Arrival(date: payday, kind: .vacationPay, amount: down(monthly / Decimal(string: "29.3")! * Decimal(days)), absence: absence.id))
+                out.append(Arrival(date: payday, kind: .vacationPay,
+                                   amount: down(monthly / Decimal(string: "29.3")! * Decimal(days) * afterTaxShare(of: member, on: payday)), absence: absence.id))
             case .sickLeave:
                 // shortcut: average day = a year's salary / 365 and no cap on earnings; employers use two years with a cap.
                 let total = days(first, last) + 1
-                let daily = monthly * 12 / 365 * Decimal(absence.sickPercent) / 100
+                let daily = monthly * 12 / 365 * Decimal(absence.sickPercent) / 100 * afterTaxShare(of: member, on: last)
                 // The employer pays the first 3 days with the next payday; the Social Fund the rest about two weeks after.
                 if let next = paydays(of: member, from: add(1, to: last)!, to: add(60, to: last)!).first {
                     out.append(Arrival(date: next, kind: .sickPayEmployer, amount: down(daily * Decimal(min(3, total))), absence: absence.id))
