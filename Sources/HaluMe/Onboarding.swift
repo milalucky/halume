@@ -502,7 +502,7 @@ extension Envelope {
             case .target: .target
             case .percent: .percent
             case .yearly: .yearly
-            case .perPayday, .open: .perPayday
+            case .perPayday, .open, .project: .perPayday
             }
         }
         set { goal = Self.goal(newValue, value: value, deadline: deadline) }
@@ -512,7 +512,7 @@ extension Envelope {
         get {
             switch goal {
             case .target(let v, _), .percent(let v), .perPayday(let v), .yearly(let v): v
-            case .open: 0
+            case .open, .project: 0
             }
         }
         set { goal = Self.goal(kind, value: newValue, deadline: deadline) }

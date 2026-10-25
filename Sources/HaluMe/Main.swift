@@ -25,6 +25,7 @@ struct MainView: View {
                 case .savings: SavingsPage()
                 case .debts: DebtsPage()
                 case .subscriptions: SubscriptionsPage()
+                case .projects: ProjectsPage()
                 case .wishlist: WishlistPage()
                 case .stats: StatsPage()
                 }
@@ -43,6 +44,9 @@ struct MainView: View {
                 case .withdraw(let id): WithdrawSheet(envelopeID: id)
                 case .timeOff: TimeOffSheet()
                 case .wish(let wish): WishEditor(wish: wish)
+                case .newProject: NewProjectSheet()
+                case .task(let project, let stage, let task): TaskEditor(projectID: project, stageID: stage, task: task)
+                case .rates(let id): RatesSheet(projectID: id)
                 }
             }
             .environment(store)
@@ -63,6 +67,7 @@ extension Section {
         case .savings: "Savings"
         case .debts: "Debts"
         case .subscriptions: "Subscriptions"
+        case .projects: "Projects"
         case .wishlist: "Wishlist"
         case .stats: "Stats"
         }
@@ -74,6 +79,7 @@ extension Section {
         case .savings: "tray.full"
         case .debts: "creditcard"
         case .subscriptions: "repeat"
+        case .projects: "flag.checkered"
         case .wishlist: "gift"
         case .stats: "chart.bar.xaxis"
         }
@@ -189,10 +195,27 @@ private struct ComingUp: View {
         }
         let me = budget.members.first?.id ?? UUID()
         let arrivals = planner.extras(of: me, from: today, to: week)
-        if !items.isEmpty || !interest.isEmpty || !arrivals.isEmpty {
+        let steps = planner.projectTasks(from: today, to: week)
+        if !items.isEmpty || !interest.isEmpty || !arrivals.isEmpty || !steps.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Coming up this week").font(.headline)
                 VStack(spacing: 0) {
+                    ForEach(steps, id: \.task.id) { project, task in
+                        HStack(spacing: 12) {
+                            Image(systemName: "flag.checkered")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Palette.orange)
+                                .frame(width: 32, height: 32)
+                                .background(Circle().fill(Palette.orange.opacity(0.14)))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(task.title)
+                                Text("\(project.name) · \(task.due!.relativeDay)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if task.cost > 0 { Text(project.cost(of: task).money(budget.currency)).monospacedDigit() }
+                        }
+                        .padding(.vertical, 8)
+                    }
                     ForEach(Array(arrivals.enumerated()), id: \.offset) { _, arrival in
                         HStack(spacing: 12) {
                             Image(systemName: "arrow.down")

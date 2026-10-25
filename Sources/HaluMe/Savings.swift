@@ -96,6 +96,7 @@ struct SavingsGrid: View {
         case .perPayday(let a): String(localized: "\(a.money(currency)) each payday")
         case .yearly(let a): String(localized: "\(a.money(currency)) a year")
         case .open: String(localized: "From leftovers")
+        case .project: String(localized: "Project fund")
         }
     }
 }

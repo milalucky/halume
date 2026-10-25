@@ -39,7 +39,8 @@ public struct Project: Codable, Sendable, Hashable, Identifiable {
     /// Money needed by each date for the tasks still ahead, cumulative and in date order.
     public func milestones() -> [(date: Date, needed: Decimal)] {
         var byDate: [Date: Decimal] = [:]
-        for task in tasks where !task.isDone {
+        // Only dates that need money of their own.
+        for task in tasks where !task.isDone && task.cost > 0 {
             byDate[task.due ?? target, default: 0] += cost(of: task)
         }
         var total: Decimal = 0
@@ -75,11 +76,14 @@ public struct ProjectTask: Codable, Sendable, Hashable, Identifiable {
     public var after: UUID?
     public var note: String
     public var link: String
+    /// The withdrawal from the project fund that paid for it.
+    public var payment: UUID?
 
     public init(id: UUID = UUID(), title: String, due: Date? = nil, cost: Decimal = 0, currency: String? = nil,
-                spent: Decimal? = nil, isDone: Bool = false, assignee: UUID? = nil, after: UUID? = nil, note: String = "", link: String = "") {
+                spent: Decimal? = nil, isDone: Bool = false, assignee: UUID? = nil, after: UUID? = nil, note: String = "", link: String = "",
+                payment: UUID? = nil) {
         self.id = id; self.title = title; self.due = due; self.cost = cost; self.currency = currency; self.spent = spent
-        self.isDone = isDone; self.assignee = assignee; self.after = after; self.note = note; self.link = link
+        self.isDone = isDone; self.assignee = assignee; self.after = after; self.note = note; self.link = link; self.payment = payment
     }
 }
 

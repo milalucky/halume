@@ -10,6 +10,9 @@ enum Sheet: Identifiable, Hashable {
     case withdraw(UUID)
     case timeOff
     case wish(Wish)
+    case newProject
+    case task(project: UUID, stage: UUID, task: ProjectTask)
+    case rates(UUID)
 
     var id: String {
         switch self {
@@ -22,6 +25,9 @@ enum Sheet: Identifiable, Hashable {
         case .withdraw(let id): "withdraw-\(id)"
         case .timeOff: "time-off"
         case .wish(let w): "wish-\(w.id)"
+        case .newProject: "new-project"
+        case .task(_, _, let t): "task-\(t.id)"
+        case .rates(let id): "rates-\(id)"
         }
     }
 
@@ -37,13 +43,14 @@ enum Sheet: Identifiable, Hashable {
         case "withdraw": budget?.envelopes.first.map { .withdraw($0.id) }
         case "timeoff": .timeOff
         case "wish": budget?.wishes.first.map { .wish($0) }
+        case "project": .newProject
         default: nil
         }
     }
 }
 
 enum Section: String, CaseIterable, Identifiable {
-    case today, savings, debts, subscriptions, wishlist, stats
+    case today, savings, debts, subscriptions, projects, wishlist, stats
     var id: Self { self }
 }
 
@@ -59,6 +66,8 @@ final class BudgetStore {
 
     var sheet: Sheet?
     var section = Section.today
+    /// The project shown in Projects, if one is open.
+    var openProject: UUID?
     var confirmingStartOver = false
 
     /// `--demo` fills a sample budget in memory and never touches the file.

@@ -134,7 +134,8 @@ struct PlanEditor: View {
             guard let budget = store.budget else { return }
             if let income = budget.incomes.first { pay = PaySettings(income, country: budget.country) }
             bills = budget.bills
-            envelopes = budget.envelopes.sorted { $0.priority < $1.priority }
+            // Project funds are managed in Projects.
+            envelopes = budget.envelopes.filter { if case .project = $0.goal { false } else { true } }.sorted { $0.priority < $1.priority }
         }
     }
 
@@ -142,7 +143,8 @@ struct PlanEditor: View {
         guard var budget = store.budget else { return }
         if !budget.incomes.isEmpty { pay.apply(to: &budget.incomes[0]) }
         budget.bills = bills.cleaned
-        budget.envelopes = envelopes.cleaned
+        let funds = budget.envelopes.filter { if case .project = $0.goal { true } else { false } }
+        budget.envelopes = envelopes.cleaned + funds.enumerated().map { var f = $0.element; f.priority = envelopes.count + $0.offset; return f }
         store.budget = budget
     }
 }
