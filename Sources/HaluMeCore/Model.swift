@@ -13,6 +13,9 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var debts: [Debt]
     public var subscriptions: [Subscription]
     public var withdrawals: [Withdrawal]
+    public var absences: [Absence]
+    /// Holidays and moved days off for counting working days; nil means weekends only.
+    public var workCalendar: WorkCalendar?
     public var paydays: [Payday]
     public var checks: [BalanceCheck]
 
@@ -23,6 +26,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         self.id = id; self.name = name; self.currency = currency; self.members = members
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
+        self.absences = []; self.workCalendar = nil
         self.paydays = paydays; self.checks = checks
     }
 
@@ -39,6 +43,8 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         debts = try c.decodeIfPresent([Debt].self, forKey: .debts) ?? []
         subscriptions = try c.decodeIfPresent([Subscription].self, forKey: .subscriptions) ?? []
         withdrawals = try c.decodeIfPresent([Withdrawal].self, forKey: .withdrawals) ?? []
+        absences = try c.decodeIfPresent([Absence].self, forKey: .absences) ?? []
+        workCalendar = try c.decodeIfPresent(WorkCalendar.self, forKey: .workCalendar)
         paydays = try c.decodeIfPresent([Payday].self, forKey: .paydays) ?? []
         checks = try c.decodeIfPresent([BalanceCheck].self, forKey: .checks) ?? []
     }
@@ -225,7 +231,29 @@ public enum Target: Codable, Sendable, Hashable {
     case envelope(UUID)
     case debt(UUID)
     case subscription(UUID)
+    /// Kept from a bigger pay (vacation pay) for the next, smaller one.
+    case carry
     case free
+}
+
+public enum AbsenceKind: String, Codable, Sendable, Hashable, CaseIterable {
+    case vacation, sickLeave, unpaid
+}
+
+/// Time off that changes what comes on paydays.
+public struct Absence: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var member: UUID
+    public var kind: AbsenceKind
+    /// First and last day, both included.
+    public var from: Date
+    public var to: Date
+    /// Sick pay as a share of average earnings, by insurance record: 60, 80 or 100.
+    public var sickPercent: Int
+
+    public init(id: UUID = UUID(), member: UUID, kind: AbsenceKind, from: Date, to: Date, sickPercent: Int = 100) {
+        self.id = id; self.member = member; self.kind = kind; self.from = from; self.to = to; self.sickPercent = sickPercent
+    }
 }
 
 public struct Allocation: Codable, Sendable, Hashable {

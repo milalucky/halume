@@ -18,10 +18,24 @@ public struct Plan: Sendable, Hashable {
     public var member: UUID
     public var date: Date
     public var next: Date
+    /// Everything this period: the payday, extras and what was kept from the last pay.
     public var pay: Decimal
     public var lines: [Line]
     public var free: Decimal
+    /// Vacation or sick pay arriving within this period.
+    public var extras: [Arrival] = []
+    /// Kept from the last period for this one.
+    public var carriedIn: Decimal = 0
     public var shortfall: Decimal { lines.reduce(0) { $0 + $1.planned - $1.amount } }
+}
+
+/// Money arriving apart from a payday.
+public struct Arrival: Sendable, Hashable {
+    public enum Kind: Sendable, Hashable { case vacationPay, sickPayEmployer, sickPayFund }
+    public var date: Date
+    public var kind: Kind
+    public var amount: Decimal
+    public var absence: UUID
 }
 
 public struct Payoff: Sendable, Hashable {
@@ -70,13 +84,13 @@ public struct Planner: Sendable {
         let raw: [Date]
         switch income.schedule {
         case .monthly(let days):
-            // Widened: a weekend shift moves a date up to two days either way.
-            raw = monthDays(days, from: add(-3, to: from)!, to: add(3, to: to)!)
+            // Widened: a shift past weekends and holidays can move a date up to two weeks.
+            raw = monthDays(days, from: add(-14, to: from)!, to: add(14, to: to)!)
         case .everyWeeks(let weeks, let anchor):
             let step = max(1, weeks) * 7, anchor = day(anchor)
             var k = max(0, self.days(anchor, from) / step - 1)
             var out: [Date] = []
-            while let d = add(k * step, to: anchor), d <= add(3, to: to)! {
+            while let d = add(k * step, to: anchor), d <= add(14, to: to)! {
                 out.append(d)
                 k += 1
             }
@@ -95,45 +109,162 @@ public struct Planner: Sendable {
         return raw.map { shifted($0, income.shift) }.filter { $0 >= from && $0 <= to }
     }
 
-    /// What one income is expected to bring on one of its paydays.
+    /// What one income is expected to bring on one of its paydays, less the working days missed.
     public func expected(of income: Income, on date: Date) -> Decimal {
+        pay(of: income, on: date, absences: true)
+    }
+
+    /// The same without time off: what a usual payday brings.
+    public func usual(of income: Income, on date: Date) -> Decimal {
+        pay(of: income, on: date, absences: false)
+    }
+
+    func pay(of income: Income, on date: Date, absences: Bool) -> Decimal {
         let date = day(date)
+        // Share of working days actually worked in [from, to].
+        func worked(_ from: Date, _ to: Date) -> Decimal {
+            let all = workdayCount(from, to)
+            guard absences, all > 0 else { return 1 }
+            return Decimal(all - absentWorkdays(of: income.member, from, to)) / Decimal(all)
+        }
         switch income.schedule {
         case .daily(let weekdaysOnly):
-            let days = (0..<7).map { add($0, to: date)! }.filter { !weekdaysOnly || !calendar.isDateInWeekend($0) }.count
-            return income.expected * Decimal(days)
-        case .everyWeeks:
-            return income.expected
+            let days = (0..<7).map { add($0, to: date)! }
+                .filter { !weekdaysOnly || isWorkday($0) }
+                .filter { d in !absences || !isAbsent(income.member, on: d) }
+            return income.expected * Decimal(days.count)
+        case .everyWeeks(let weeks, _):
+            return down(income.expected * worked(add(-7 * max(weeks, 1), to: date)!, add(-1, to: date)!))
         case .monthly(let days):
             guard income.isMonthly else { return income.expected }
-            guard days.count == 2 else { return down(income.expected / Decimal(max(days.count, 1))) }
-            // Which nominal day was moved onto this date by the weekend rule.
-            let nominal = monthDays(days, from: add(-3, to: date)!, to: add(3, to: date)!)
+            // Which nominal day was moved onto this date by the weekend and holiday rule.
+            let nominal = monthDays(days, from: add(-14, to: date)!, to: add(14, to: date)!)
                 .first { shifted($0, income.shift) == date } ?? date
+            guard days.count == 2 else {
+                // One payday a month pays the month before.
+                let (start, end) = monthBounds(calendar.date(byAdding: .month, value: -1, to: nominal)!)
+                return down(income.expected * worked(start, end))
+            }
             // A payday late in the month pays the first half of that month (the advance);
-            // an early one pays the second half of the month before.
+            // an early one pays the rest of the month before.
             let firstHalf = calendar.component(.day, from: nominal) >= 16
             let month = firstHalf ? nominal : calendar.date(byAdding: .month, value: -1, to: nominal)!
-            switch income.split {
-            case .equal:
-                return firstHalf ? down(income.expected / 2) : income.expected - down(income.expected / 2)
-            case .advance(let amount):
-                return firstHalf ? min(amount, income.expected) : max(0, income.expected - amount)
+            let (start, end) = monthBounds(month)
+            let mid = add(14, to: start)!
+            let advance: Decimal = switch income.split {
+            case .equal: down(income.expected / 2 * worked(start, mid))
+            case .advance(let amount): down(min(amount, income.expected) * worked(start, mid))
             case .byWorkdays:
-                let (first, all) = workdays(in: month)
-                let advance = all > 0 ? down(income.expected * Decimal(first) / Decimal(all)) : down(income.expected / 2)
-                return firstHalf ? advance : income.expected - advance
+                down(income.expected * Decimal(workdayCount(start, mid)) / Decimal(max(workdayCount(start, end), 1)) * worked(start, mid))
             }
+            let earned = down(income.expected * worked(start, end))
+            return firstHalf ? advance : max(0, earned - advance)
         }
     }
 
-    /// Weekdays in the 1st–15th and in the whole month.
-    func workdays(in month: Date) -> (firstHalf: Int, month: Int) {
-        let start = calendar.dateInterval(of: .month, for: month)!.start
-        let length = calendar.range(of: .day, in: .month, for: start)!.count
-        // shortcut: weekends only, no public holidays; add a per-country holiday list when localizing.
-        let weekdays = (0..<length).filter { !calendar.isDateInWeekend(add($0, to: start)!) }
-        return (weekdays.filter { $0 < 15 }.count, weekdays.count)
+    func monthBounds(_ date: Date) -> (Date, Date) {
+        let start = calendar.dateInterval(of: .month, for: date)!.start
+        return (start, add(calendar.range(of: .day, in: .month, for: start)!.count - 1, to: start)!)
+    }
+
+    // MARK: Working days and time off
+
+    public func isWorkday(_ date: Date) -> Bool {
+        budget.workCalendar?.isWorkday(date, calendar: calendar) ?? !calendar.isDateInWeekend(date)
+    }
+
+    /// Working days in [from, to], both included.
+    public func workdayCount(_ from: Date, _ to: Date) -> Int {
+        var n = 0, d = day(from)
+        while d <= day(to) { if isWorkday(d) { n += 1 }; d = add(1, to: d)! }
+        return n
+    }
+
+    func isAbsent(_ member: UUID, on date: Date) -> Bool {
+        budget.absences.contains { $0.member == member && day($0.from) <= date && date <= day($0.to) }
+    }
+
+    func absentWorkdays(of member: UUID, _ from: Date, _ to: Date) -> Int {
+        var n = 0, d = day(from)
+        while d <= day(to) { if isWorkday(d) && isAbsent(member, on: d) { n += 1 }; d = add(1, to: d)! }
+        return n
+    }
+
+    /// What a member's paydays on this date usually bring, without time off.
+    public func usual(of member: UUID, on date: Date) -> Decimal {
+        budget.incomes.filter { $0.member == member && !dates(of: $0, from: date, to: date).isEmpty }
+            .reduce(0) { $0 + usual(of: $1, on: date) }
+    }
+
+    /// A period's money without what an earlier period kept for it: the payday plus extras before the next one.
+    func incoming(of member: UUID, at date: Date, next: Date) -> Decimal {
+        (payday(of: member, on: date)?.actual ?? expected(of: member, on: date))
+            + extras(of: member, from: date, to: add(-1, to: next)!).reduce(0) { $0 + $1.amount }
+    }
+
+    func nextOrMonth(after date: Date, of member: UUID) -> Date {
+        next(after: date, of: member) ?? calendar.date(byAdding: .month, value: 1, to: date)!
+    }
+
+    /// How much of this period's money to keep for the next paydays that come in short (up to three ahead).
+    func carryOut(of member: UUID, at date: Date, next: Date, money: Decimal) -> Decimal {
+        let excess = money - usual(of: member, on: date)
+        guard excess > 0 else { return 0 }
+        var short: Decimal = 0, payday = next
+        for _ in 0..<3 {
+            let after = nextOrMonth(after: payday, of: member)
+            short += max(0, usual(of: member, on: payday) - incoming(of: member, at: payday, next: after))
+            payday = after
+        }
+        return down(min(excess, short))
+    }
+
+    /// What the periods before `date` kept for it (passed on until the short payday).
+    func carry(of member: UUID, into date: Date, depth: Int = 3) -> Decimal {
+        guard depth > 0, let previous = current(on: add(-1, to: date)!, of: member) else { return 0 }
+        let money = incoming(of: member, at: previous, next: date) + carry(of: member, into: previous, depth: depth - 1)
+        return carryOut(of: member, at: previous, next: date, money: money)
+    }
+
+    /// A member's usual monthly salary (salaried incomes only).
+    func monthlySalary(of member: UUID) -> Decimal {
+        budget.incomes.filter { $0.member == member && $0.isMonthly }.reduce(0) { $0 + $1.expected }
+    }
+
+    /// Money that comes apart from paydays: vacation pay before a vacation, sick pay after sick leave.
+    public func extras(of member: UUID, from: Date, to: Date) -> [Arrival] {
+        let monthly = monthlySalary(of: member)
+        guard monthly > 0 else { return [] }
+        var out: [Arrival] = []
+        for absence in budget.absences where absence.member == member {
+            let first = day(absence.from), last = day(absence.to)
+            switch absence.kind {
+            case .vacation:
+                // Paid at least 3 days ahead (Labour Code art. 136), on a working day; average day = month / 29.3.
+                var payday = add(-3, to: first)!
+                while !isWorkday(payday) { payday = add(-1, to: payday)! }
+                var days = 0, d = first
+                while d <= last {
+                    if !(budget.workCalendar?.isVacationHoliday(d, calendar: calendar) ?? false) { days += 1 }
+                    d = add(1, to: d)!
+                }
+                out.append(Arrival(date: payday, kind: .vacationPay, amount: down(monthly / Decimal(string: "29.3")! * Decimal(days)), absence: absence.id))
+            case .sickLeave:
+                // shortcut: average day = a year's salary / 365 and no cap on earnings; employers use two years with a cap.
+                let total = days(first, last) + 1
+                let daily = monthly * 12 / 365 * Decimal(absence.sickPercent) / 100
+                // The employer pays the first 3 days with the next payday; the Social Fund the rest about two weeks after.
+                if let next = paydays(of: member, from: add(1, to: last)!, to: add(60, to: last)!).first {
+                    out.append(Arrival(date: next, kind: .sickPayEmployer, amount: down(daily * Decimal(min(3, total))), absence: absence.id))
+                }
+                if total > 3 {
+                    out.append(Arrival(date: add(14, to: last)!, kind: .sickPayFund, amount: down(daily * Decimal(total - 3)), absence: absence.id))
+                }
+            case .unpaid:
+                break
+            }
+        }
+        return out.filter { $0.date >= day(from) && $0.date <= day(to) }.sorted { $0.date < $1.date }
     }
 
     /// All pay dates of a member in [from, to], one per day.
@@ -228,7 +359,9 @@ public struct Planner: Sendable {
         let date = day(date)
         let next = self.next(after: date, of: member) ?? calendar.date(byAdding: .month, value: 1, to: date)!
         let record = payday(of: member, on: date)
-        let pay = record?.actual ?? expected(of: member, on: date)
+        let extra = extras(of: member, from: date, to: add(-1, to: next)!)
+        let carriedIn = carry(of: member, into: date)
+        let pay = incoming(of: member, at: date, next: next) + carriedIn
         var left = pay
         var lines: [Plan.Line] = []
 
@@ -265,6 +398,10 @@ public struct Planner: Sendable {
             take(item.target, item.name, item.amount)
         }
 
+        // Smoothing: a bigger period (vacation pay came) keeps enough for a smaller next payday.
+        let keep = carryOut(of: member, at: date, next: next, money: pay)
+        if keep > 0 { take(.carry, "", keep) }
+
         for envelope in budget.envelopes.sorted(by: { $0.priority < $1.priority }) {
             let s = share(of: member, owner: envelope.owner, split: envelope.split, on: date)
             guard s > 0 else { continue }
@@ -272,7 +409,8 @@ public struct Planner: Sendable {
             if planned > 0 { take(.envelope(envelope.id), envelope.name, planned) }
         }
 
-        return Plan(member: member, date: date, next: next, pay: pay, lines: lines, free: max(left, 0))
+        return Plan(member: member, date: date, next: next, pay: pay, lines: lines, free: max(left, 0),
+                    extras: extra, carriedIn: carriedIn)
     }
 
     func contribution(_ envelope: Envelope, member: UUID, on date: Date, pay: Decimal, share: Decimal) -> Decimal {
@@ -421,15 +559,12 @@ public struct Planner: Sendable {
     }
 
     // shortcut: weekends only, no public holidays; add a per-country holiday list when localizing.
+    /// A payday on a day off moves to the working day before (or after); holidays count when there is a work calendar.
     func shifted(_ date: Date, _ shift: WeekendShift) -> Date {
-        let weekday = calendar.component(.weekday, from: date) // 1 Sunday, 7 Saturday
-        switch (shift, weekday) {
-        case (.earlier, 7): return add(-1, to: date)!
-        case (.earlier, 1): return add(-2, to: date)!
-        case (.later, 7): return add(2, to: date)!
-        case (.later, 1): return add(1, to: date)!
-        default: return date
-        }
+        guard shift != .none else { return date }
+        var d = date
+        for _ in 0..<14 where !isWorkday(d) { d = add(shift == .earlier ? -1 : 1, to: d)! }
+        return d
     }
 }
 

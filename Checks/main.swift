@@ -226,6 +226,37 @@ check(Set(back.envelopes.map(\.id)) == Set(family.envelopes.map(\.id)) && Set(ba
       && back.withdrawals == family.withdrawals, "merging gives the whole budget back")
 check(family.sharedPart(at: d(2027, 3, 8)).envelopes.contains { $0.id == gift.id }, "revealed on the date")
 
+// Russia's production calendar: January holidays shrink the advance and move paydays back.
+var ru = budget
+ru.paydays = []; ru.bills = []; ru.envelopes = []; ru.debts = []; ru.subscriptions = []
+ru.incomes = [Income(member: me.id, name: "Salary", schedule: .monthly(days: [10, 25]), expected: 200_000, isMonthly: true, split: .byWorkdays)]
+ru.workCalendar = .russia
+var rp = Planner(ru, calendar: calendar)
+check(rp.workdayCount(d(2026, 1, 1), d(2026, 1, 31)) == 15, "15 working days in January 2026")
+check(rp.paydays(of: me.id, from: d(2026, 1, 20), to: d(2026, 1, 26)) == [d(2026, 1, 23)], "25 Jan (Sunday) paid on Friday the 23rd")
+check(rp.expected(of: me.id, on: d(2026, 1, 23)) == 53_333, "January advance: 4 of 15 working days (\(rp.expected(of: me.id, on: d(2026, 1, 23))))")
+check(rp.paydays(of: me.id, from: d(2026, 12, 26), to: d(2027, 1, 12)).contains(d(2026, 12, 30)), "10 Jan 2027 paid on 30 Dec, before the holidays")
+
+// Vacation 2–15 Nov 2026: 14 days less the 4 Nov holiday = 13 paid days, money on Friday 30 Oct.
+ru.absences = [Absence(member: me.id, kind: .vacation, from: d(2026, 11, 2), to: d(2026, 11, 15))]
+rp = Planner(ru, calendar: calendar)
+let vacationPay = rp.extras(of: me.id, from: d(2026, 10, 1), to: d(2026, 11, 30))
+check(vacationPay.count == 1 && vacationPay[0].date == d(2026, 10, 30) && vacationPay[0].amount == 88_737, "vacation pay \(vacationPay)")
+check(rp.expected(of: me.id, on: d(2026, 11, 25)) == 0, "no advance for a month's first half spent on vacation")
+let octPlan = rp.plan(for: me.id, on: d(2026, 10, 23))
+let kept = octPlan.lines.first { $0.target == .carry }?.amount ?? 0
+check(kept > 0 && octPlan.extras.count == 1, "vacation pay partly kept (\(kept))")
+let novPlan = rp.plan(for: me.id, on: d(2026, 11, 25))
+check(novPlan.pay > 0 && novPlan.carriedIn > 0, "the empty advance is covered by what was kept (\(novPlan.pay))")
+
+// Sick leave 10 days at 80%: 3 days from the employer on the next payday, 7 from the Social Fund two weeks later.
+ru.absences = [Absence(member: me.id, kind: .sickLeave, from: d(2026, 10, 12), to: d(2026, 10, 21), sickPercent: 80)]
+rp = Planner(ru, calendar: calendar)
+let sick = rp.extras(of: me.id, from: d(2026, 10, 1), to: d(2026, 11, 30))
+check(sick.map(\.kind) == [.sickPayEmployer, .sickPayFund] && sick[0].date == d(2026, 10, 23) && sick[1].date == d(2026, 11, 4),
+      "sick pay arrivals \(sick.map(\.date))")
+check(rp.expected(of: me.id, on: d(2026, 11, 10)) < rp.usual(of: me.id, on: d(2026, 11, 10)), "October's final pay is smaller")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),
