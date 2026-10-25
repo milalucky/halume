@@ -323,3 +323,7 @@
 "Half and half." = "Пополам.";
 "A fixed advance on the payday late in the month, the rest on the other one." = "Фиксированный аванс в выплату ближе к концу месяца, остальное — в другую.";
 "Split" = "Деление";
+"It shows up in your stats, and goals with a date catch up from the next pays." = "Это будет видно в статистике, а цели с датой догонят со следующих зарплат.";
+"From" = "Откуда";
+"%@ there now" = "Сейчас там %@";
+"That's more than there is." = "Это больше, чем там есть.";

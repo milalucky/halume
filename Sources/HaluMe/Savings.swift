@@ -6,6 +6,9 @@ struct SavingsPage: View {
 
     var body: some View {
         Page(title: "Savings") {
+            if let first = store.budget?.envelopes.first {
+                IconButton(icon: "arrow.uturn.backward", label: "Take money out") { store.sheet = .withdraw(first.id) }
+            }
             IconButton(icon: "slider.horizontal.3", label: "Edit savings") { store.sheet = .plan }
         } content: {
             if let planner = store.planner {
@@ -180,19 +183,29 @@ struct HoldingFields: View {
 
 struct WithdrawSheet: View {
     @Environment(BudgetStore.self) private var store
-    let envelopeID: UUID
+    @State var envelopeID: UUID
     @State private var amount: Decimal = 0
     @State private var note = ""
 
     var body: some View {
-        let envelope = store.budget?.envelopes.first { $0.id == envelopeID }
+        let envelopes = store.budget?.envelopes ?? []
+        let envelope = envelopes.first { $0.id == envelopeID }
         let balance = envelope.flatMap { e in store.planner?.balance(of: e, before: tomorrow(Date())) } ?? 0
         let currency = store.budget?.currency ?? "USD"
         SheetFrame(title: "Take money out",
-                   subtitle: "From \(envelope?.name ?? ""), \(balance.money(currency)) now. It shows up in your stats, and goals with a date catch up.",
+                   subtitle: "It shows up in your stats, and goals with a date catch up from the next pays.",
                    action: "Take Out", canSave: amount > 0 && amount <= balance,
                    save: { store.withdraw(amount, from: envelopeID, note: note) }) {
+            Field("From", hint: "\(balance.money(currency)) there now") {
+                Picker("From", selection: $envelopeID) {
+                    ForEach(envelopes) { Text($0.name).tag($0.id) }
+                }
+                .labelsHidden()
+            }
             Field("Amount") { AmountField(amount: $amount, currency: currency) }
+            if amount > balance {
+                Text("That's more than there is.").font(.callout).foregroundStyle(Palette.red)
+            }
             Field("What for", hint: "Optional") { TextField("e.g. Car repair", text: $note) }
         }
     }
