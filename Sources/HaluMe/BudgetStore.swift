@@ -135,6 +135,24 @@ final class BudgetStore {
         self.budget = budget
     }
 
+    /// Adds or updates a partner and their salary (same settings as yours: schedule, currency, before or after tax).
+    func savePartner(_ id: UUID?, name: String, pay: PaySettings?) {
+        guard var budget else { return }
+        let memberID = id ?? UUID()
+        if let i = budget.members.firstIndex(where: { $0.id == memberID }) { budget.members[i].name = name }
+        else { budget.members.append(Member(id: memberID, name: name)) }
+        if let pay, pay.amount > 0 {
+            var income = budget.incomes.first { $0.member == memberID }
+                ?? Income(member: memberID, name: String(localized: "Salary"), schedule: .monthly(days: [10]), expected: 0)
+            pay.apply(to: &income)
+            budget.incomes.removeAll { $0.member == memberID }
+            budget.incomes.append(income)
+        } else {
+            budget.incomes.removeAll { $0.member == memberID }
+        }
+        self.budget = budget
+    }
+
     /// Removes a partner; what they owned becomes yours, shared things stay shared.
     func removeMember(_ id: UUID) {
         guard var budget, id != me, let me else { return }

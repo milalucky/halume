@@ -1,52 +1,106 @@
 import HaluMeCore
 import SwiftUI
 
-/// Settings → Household: who shares this budget.
+/// Settings → Household: who shares this budget, and how a partner's salary is used.
 struct HouseholdSection: View {
     @Environment(BudgetStore.self) private var store
-    @State private var name = ""
-    @State private var monthly: Decimal = 0
-    @State private var adding = false
+    @State private var editing: PartnerEdit?
+
+    struct PartnerEdit: Identifiable {
+        let id = UUID()
+        var member: UUID?
+    }
 
     var body: some View {
         SwiftUI.Section {
             if let budget = store.budget {
                 ForEach(budget.members) { member in
-                    HStack {
+                    HStack(alignment: .top) {
                         Monogram(name: member.name, size: 26)
-                        Text(member.name)
-                        if member.id == store.me { Text("you").foregroundStyle(.secondary) }
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(member.name)
+                                if member.id == store.me { Text("you").foregroundStyle(.secondary) }
+                            }
+                            Text(summary(of: member.id, in: budget)).font(.caption).foregroundStyle(.secondary)
+                        }
                         Spacer()
                         if member.id != store.me {
-                            Button("Remove", role: .destructive) { store.removeMember(member.id) }
-                                .buttonStyle(.borderless)
+                            Button("Edit…") { editing = PartnerEdit(member: member.id) }.buttonStyle(.borderless)
+                            Button("Remove", role: .destructive) { store.removeMember(member.id) }.buttonStyle(.borderless)
                         }
                     }
                 }
-                if adding {
-                    BoxTextField("Partner's name", text: $name)
-                    AmountField(optional: Binding(get: { monthly == 0 ? nil : monthly }, set: { monthly = $0 ?? 0 }),
-                                currency: budget.currency, placeholder: "Their salary a month (optional)")
-                    HStack {
-                        Spacer()
-                        Button("Cancel") { adding = false }
-                        Button("Add") {
-                            store.addPartner(name: name.trimmingCharacters(in: .whitespaces), monthly: monthly)
-                            name = ""; monthly = 0; adding = false
-                        }
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                        .keyboardShortcut(.defaultAction)
-                    }
-                } else {
-                    Button("Add Partner…") { adding = true }
-                }
+                Button("Add Partner…") { editing = PartnerEdit(member: nil) }
             }
         } header: {
             Text("Household")
         } footer: {
-            Text("Mark bills, savings, debts and subscriptions as shared to split them. Each of you sees your own share in your plan. Syncing between your devices comes with iCloud.")
+            Text("A partner's salary is only used to split shared costs “by income”. Shared bills, savings, debts and subscriptions are split equally, by income, paid by one of you or in turns — set in each of them, together with the account it's paid from. Each of you sees your own share in your plan; syncing between your devices comes with iCloud.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .sheet(item: $editing) { edit in
+            PartnerSheet(memberID: edit.member).environment(store).tint(Palette.orange)
+        }
+    }
+
+    private func summary(of member: UUID, in budget: Budget) -> String {
+        guard let income = budget.incomes.first(where: { $0.member == member }) else { return String(localized: "No salary given") }
+        let amount = (income.isMonthly ? income.expected : income.expected).money(income.currency ?? budget.currency)
+        let tax = income.tax == nil ? String(localized: "after tax") : String(localized: "before tax")
+        return income.isMonthly ? String(localized: "\(amount) a month, \(tax)") : String(localized: "\(amount) each payday, \(tax)")
+    }
+}
+
+/// A partner's name and salary, set up like your own.
+struct PartnerSheet: View {
+    @Environment(BudgetStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let memberID: UUID?
+    @State private var name = ""
+    @State private var pay = PaySettings()
+    @State private var hasSalary = true
+
+    var body: some View {
+        let budget = store.budget!
+        VStack(alignment: .leading, spacing: 16) {
+            Text(memberID == nil ? "Add partner" : "Partner").font(.title2.weight(.semibold))
+            Field("Name") { BoxTextField("Partner's name", text: $name) }
+            Toggle("Give their salary (to split shared costs by income)", isOn: $hasSalary)
+            if hasSalary {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        PayEditor(pay: $pay, currency: budget.currency, calendar: budget.workCalendar, showsTitle: false)
+                    }
+                }
+                .frame(maxHeight: 420)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.buttonStyle(SecondaryButtonStyle()).keyboardShortcut(.cancelAction)
+                Button(memberID == nil ? "Add" : "Save") {
+                    store.savePartner(memberID, name: name.trimmingCharacters(in: .whitespaces), pay: hasSalary ? pay : nil)
+                    dismiss()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .keyboardShortcut(.defaultAction)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 620)
+        .onAppear {
+            name = memberID.flatMap { id in budget.members.first { $0.id == id }?.name } ?? ""
+            if let id = memberID, let income = budget.incomes.first(where: { $0.member == id }) {
+                pay = PaySettings(income, country: budget.country)
+            } else {
+                var fresh = PaySettings()
+                fresh.country = budget.country
+                fresh.frequency = ["CA", "US"].contains(budget.country) ? .biweekly : .twiceMonthly
+                pay = fresh
+                hasSalary = memberID == nil || budget.incomes.contains { $0.member == memberID }
+            }
         }
     }
 }

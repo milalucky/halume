@@ -781,3 +781,12 @@
 "A goal with its price by the date you choose; part of each pay goes there." = "Цель на эту сумму к выбранной дате; часть каждой зарплаты будет идти туда.";
 "Start Saving" = "Начать копить";
 "About %@ from each of %lld paydays" = "Около %@ с каждой из %lld зарплат";
+"A partner's salary is only used to split shared costs “by income”. Shared bills, savings, debts and subscriptions are split equally, by income, paid by one of you or in turns — set in each of them, together with the account it's paid from. Each of you sees your own share in your plan; syncing between your devices comes with iCloud." = "Зарплата партнёра нужна только для деления общих трат «по доходу». Общие платежи, накопления, долги и подписки делятся поровну, по доходу, платит кто-то один или по очереди — это выбирается в каждом из них, вместе со счётом, с которого платить. Каждый видит в своём плане свою долю; синхронизация между устройствами появится с iCloud.";
+"No salary given" = "Зарплата не указана";
+"after tax" = "после налогов";
+"before tax" = "до налогов";
+"%@ a month, %@" = "%@ в месяц, %@";
+"%@ each payday, %@" = "%@ за выплату, %@";
+"Add partner" = "Добавить партнёра";
+"Partner" = "Партнёр";
+"Give their salary (to split shared costs by income)" = "Указать зарплату (чтобы делить общие траты по доходу)";

@@ -169,11 +169,14 @@ struct PaySettings {
     var married = false
     var regionalRate: Decimal = 0
     var flatRate: Decimal = 0
+    /// The salary's currency; nil: the budget's.
+    var currency: String?
 
     init() {}
 
     init(_ income: Income, country: String) {
         self.country = country
+        currency = income.currency
         shift = income.shift
         amount = income.expected
         switch income.schedule {
@@ -237,6 +240,7 @@ struct PaySettings {
         case .daily: .daily(weekdaysOnly: weekdaysOnly)
         }
         income.shift = shift
+        income.currency = currency
         income.expected = yearly ? amount / perYear : amount
         income.isMonthly = isMonthly
         income.tax = beforeTax
@@ -319,7 +323,7 @@ struct PayEditor: View {
             case .daily:
                 EmptyView()
             }
-            Field(amountLabel) { AmountField(amount: $pay.amount, currency: currency) }
+            Field(amountLabel) { AmountField(amount: $pay.amount, code: $pay.currency, budgetCurrency: currency) }
         }
         TaxFields(pay: $pay, currency: currency, calendar: calendar)
         if pay.frequency == .twiceMonthly {
