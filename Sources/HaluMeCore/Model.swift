@@ -377,6 +377,8 @@ public struct Debt: Codable, Sendable, Hashable, Identifiable {
     /// The debt's currency (balance and payment); nil: the budget's.
     public var currency: String?
     public var day: Int
+    /// Paid every two weeks from this date (Split's schedule) instead of monthly on `day`.
+    public var biweeklyFrom: Date?
     /// Which payday pays it; nil: the one before it's due.
     public var slot: PaySlot?
     /// The account it's paid from.

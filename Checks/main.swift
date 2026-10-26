@@ -120,6 +120,29 @@ paid.allocations = paid.allocations.map { a in var a = a; if a.target == .debt(s
 withDebts.paydays = [paid]
 dp = Planner(withDebts, calendar: calendar)
 check(dp.remaining(of: split, before: d(2026, 11, 10)) == 6_000, "split left after a payment")
+// Interest by month: 100 000 at 12%, paid 10 000 on 10 Oct and 10 Nov; 15 Oct's due date adds 1% of 90 000.
+let bank = Debt(owner: .member(me.id), name: "Bank", kind: .loan, balance: 100_000, asOf: d(2026, 10, 1), rate: 12, payment: 10_000, day: 15)
+var banking = budget
+banking.debts = [bank]
+banking.paydays = [d(2026, 10, 10), d(2026, 11, 10)].map {
+    Payday(member: me.id, date: $0, actual: nil, allocations: [Allocation(target: .debt(bank.id), amount: 10_000, isDone: true)])
+}
+let bankP = Planner(banking, calendar: calendar)
+check(bankP.remaining(of: bank, before: d(2026, 11, 11)) == 80_900, "monthly interest between payments (\(bankP.remaining(of: bank, before: d(2026, 11, 11))))")
+check(bankP.remaining(of: bank, before: d(2026, 12, 20)) == 80_900, "no interest guessed after the last payment marked done")
+
+// Split every two weeks: 8 000 in four payments of 2 000 from 26 Oct; 26 Oct and 9 Nov fall before the 10 Nov payday.
+var twoWeekly = Debt(owner: .member(me.id), name: "Split", kind: .installment, balance: 8_000, asOf: d(2026, 10, 20), payment: 2_000, day: 26)
+twoWeekly.biweeklyFrom = d(2026, 10, 26)
+var splitting = budget
+splitting.debts = [twoWeekly]
+splitting.paydays = []
+let bwp = Planner(splitting, calendar: calendar)
+check(bwp.dueDates(of: twoWeekly, from: d(2026, 10, 1), to: d(2026, 11, 30)) == [d(2026, 10, 26), d(2026, 11, 9), d(2026, 11, 23)], "every two weeks")
+let splitPlan = bwp.plan(for: me.id, on: d(2026, 10, 23))
+check(splitPlan.lines.contains { $0.target == .debt(twoWeekly.id) && $0.amount == 4_000 }, "two biweekly payments in one period (\(splitPlan.lines))")
+check(bwp.payoff(of: twoWeekly, balance: 8_000, payment: 2_000, from: d(2026, 10, 26))?.date == d(2026, 12, 7), "last biweekly payment")
+
 withDebts.debts[1].balance = 5_000  // 3 000 already paid → 2 000 left
 dp = Planner(withDebts, calendar: calendar)
 check(dp.plan(for: me.id, on: d(2026, 11, 25)).lines.contains { $0.target == .debt(split.id) && $0.amount == 2_000 },
@@ -149,9 +172,12 @@ var withInterest = budget
 withInterest.envelopes = [ozon]
 withInterest.paydays = []
 var ip = Planner(withInterest, calendar: calendar)
-check(ip.balance(of: ozon, before: d(2026, 10, 2)) == 303_000, "one month of interest added")
-check(ip.balance(of: ozon, before: d(2026, 11, 2)) == 306_030, "compounded")
-check(ip.nextInterest(of: ozon, from: d(2026, 10, 25))! == (d(2026, 11, 1), 3_030), "next interest")
+// Accrued daily on the day's balance: 16 days to 1 Oct (1,578.08), then 31 days on the new balance (3,073.62).
+func near(_ a: Decimal, _ b: String) -> Bool { abs((a - Decimal(string: b)!).double) < 0.01 }
+check(near(ip.balance(of: ozon, before: d(2026, 10, 2)), "301578.08"), "16 days of interest added (\(ip.balance(of: ozon, before: d(2026, 10, 2))))")
+check(near(ip.balance(of: ozon, before: d(2026, 11, 2)), "304651.70"), "compounded (\(ip.balance(of: ozon, before: d(2026, 11, 2))))")
+check(ip.nextInterest(of: ozon, from: d(2026, 10, 25))! == (d(2026, 11, 1), 3_073), "next interest")
+check(near(ip.balance(of: ozon, before: d(2026, 10, 20)), "301578.08"), "accrued interest isn't in the balance before the payout")
 var toCard = ozon; toCard.interestToCard = true
 withInterest.envelopes = [toCard]
 ip = Planner(withInterest, calendar: calendar)
@@ -262,6 +288,12 @@ let sick = rp.extras(of: me.id, from: d(2026, 10, 1), to: d(2026, 11, 30))
 check(sick.map(\.kind) == [.sickPayEmployer, .sickPayFund] && sick[0].date == d(2026, 10, 23) && sick[1].date == d(2026, 11, 4),
       "sick pay arrivals \(sick.map(\.date))")
 check(rp.expected(of: me.id, on: d(2026, 11, 10)) < rp.usual(of: me.id, on: d(2026, 11, 10)), "October's final pay is smaller")
+// A big salary in Russia: the average day is capped at 6,827.40 (no tax set up here, so nothing withheld).
+var rich = ru
+rich.country = "RU"
+rich.incomes[0].expected = 1_000_000
+let richSick = Planner(rich, calendar: calendar).extras(of: me.id, from: d(2026, 10, 1), to: d(2026, 11, 30))
+check(richSick.last?.amount == 38_233, "sick pay capped: 7 days × 6,827.40 × 80% (\(richSick.map(\.amount)))")
 
 // Taxes, 2026.
 // Canada, Alberta, $100,000: CPP 4,646.45, EI 1,123.07, federal 13,301.60, Alberta 6,470.38 → about $74,458 a year after tax.
@@ -277,6 +309,9 @@ for (province, provincial) in [("ON", "6722.75"), ("BC", "5555.52"), ("SK", "864
     let total = TaxRules.canadaIncomeTax(annual: 100_000, province: province)
     check(abs((total - Decimal(string: "13301.60")! - Decimal(string: provincial)!).double) < 2, "\(province) at $100,000 (\(total))")
 }
+// Ontario at $20,000: the tax reduction ($600 less 288.02) wipes out the provincial tax; federal 103.50 remains.
+let onLow = TaxRules.canadaIncomeTax(annual: 20_000, province: "ON")
+check(abs((onLow - Decimal(string: "103.50")!).double) < 1, "Ontario tax reduction at $20,000 (\(onLow))")
 let quebecTax = TaxRules.canadaIncomeTax(annual: 100_000, province: "QC")
 check(quebecTax > 20_000 && quebecTax < 26_000, "Quebec in a sensible range (\(quebecTax))")
 for code in ["NB", "NL", "PE", "NT", "NU", "YT"] {
@@ -376,13 +411,13 @@ let tripIn = Envelope(owner: .member(me.id), name: "Trip", goal: .open, opening:
 banked.accounts = [ozonAccount]
 banked.envelopes = [cushionIn, tripIn]
 var bp = Planner(banked, calendar: calendar)
-check(bp.balance(of: cushionIn, before: d(2026, 10, 2)) == 101_000 && bp.balance(of: tripIn, before: d(2026, 10, 2)) == 50_500,
+check(near(bp.balance(of: cushionIn, before: d(2026, 10, 2)), "100526.03") && near(bp.balance(of: tripIn, before: d(2026, 10, 2)), "50263.01"),
       "account interest shared by its envelopes")
 let card = Account(name: "T-Bank card", kind: .card, owner: .member(me.id))
 banked.accounts[0].interestTo = card.id
 banked.accounts.append(card)
 bp = Planner(banked, calendar: calendar)
-check(bp.balance(of: cushionIn, before: d(2026, 10, 2)) == 100_000 && bp.nextInterest(of: cushionIn, from: d(2026, 10, 25))?.amount == 1_000,
+check(bp.balance(of: cushionIn, before: d(2026, 10, 2)) == 100_000 && bp.nextInterest(of: cushionIn, from: d(2026, 10, 25))?.amount == 1_019,
       "interest paid to a card")
 
 // Which payday pays: rent from the 25th, internet split over both, a shared bill in turns.

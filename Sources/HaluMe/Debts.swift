@@ -59,7 +59,7 @@ private struct Summary: View {
         let budget = planner.budget
         let left = debts.reduce(Decimal(0)) { $0 + budget.convert(planner.remaining(of: $1, before: tomorrow(today)), from: $1.currency) }
         let monthly = debts.reduce(Decimal(0)) { $0 + budget.convert($1.payment, from: $1.currency) }
-        let free = debts.compactMap { planner.payoff(balance: planner.remaining(of: $0, before: tomorrow(today)), rate: $0.rate, payment: $0.payment, from: planner.nextDue(of: $0, from: today))?.date }.max()
+        let free = debts.compactMap { planner.payoff(of: $0, balance: planner.remaining(of: $0, before: tomorrow(today)), payment: $0.payment, from: planner.nextDue(of: $0, from: today))?.date }.max()
         StatRow {
             Stat(label: "Left to pay", value: left.money(currency), big: true)
             Stat(label: "Each month", value: monthly.money(currency))
@@ -111,7 +111,7 @@ private struct DebtCard: View {
     var body: some View {
         let currency = planner.budget.currency
         let left = planner.remaining(of: debt, before: tomorrow(today))
-        let payoff = planner.payoff(balance: left, rate: debt.rate, payment: debt.payment, from: planner.nextDue(of: debt, from: today))
+        let payoff = planner.payoff(of: debt, balance: left, payment: debt.payment, from: planner.nextDue(of: debt, from: today))
         Button { store.sheet = .payoff(debt.id) } label: {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
@@ -135,7 +135,8 @@ private struct DebtCard: View {
                     .monospacedDigit()
                 Bar(value: debt.original > 0 ? (1 - left / debt.original).double : 0)
                 HStack {
-                    Text("\(debt.payment.money(debt.currency ?? currency)) a month").font(.caption)
+                    Text(debt.biweeklyFrom == nil ? String(localized: "\(debt.payment.money(debt.currency ?? currency)) a month")
+                                                  : String(localized: "\(debt.payment.money(debt.currency ?? currency)) every two weeks")).font(.caption)
                     Spacer()
                     if let payoff {
                         Text("until \(payoff.date.formatted(.dateTime.month(.abbreviated).year()))").font(.caption)
@@ -200,7 +201,7 @@ struct DebtEditor: View {
                    save: save) {
             OwnerFields(owner: $debt.owner, split: $debt.split)
             HStack(alignment: .top, spacing: 12) {
-                PaySlotField(slot: $debt.slot)
+                if debt.biweeklyFrom == nil { PaySlotField(slot: $debt.slot) }
                 PayFromField(account: $debt.payFrom)
             }
             Field("What kind") {
@@ -214,12 +215,30 @@ struct DebtEditor: View {
             }
             HStack(alignment: .top, spacing: 12) {
                 Field("Left to pay") { AmountField(amount: $left, code: $debt.currency, budgetCurrency: currency) }
-                Field(LocalizedStringKey(debt.kind == .personal ? "Paying back" : "Each month")) {
+                Field(LocalizedStringKey(debt.kind == .personal ? "Paying back" : debt.biweeklyFrom == nil ? "Each month" : "Each payment")) {
                     AmountField(amount: $debt.payment, currency: debt.currency ?? currency)
                 }
             }
             HStack(alignment: .top, spacing: 12) {
-                Field("Due day") { DayPicker(day: $debt.day) }.frame(width: 100, alignment: .leading)
+                Field("How often") {
+                    Picker("How often", selection: Binding(get: { debt.biweeklyFrom != nil },
+                                                           set: { debt.biweeklyFrom = $0 ? (debt.biweeklyFrom ?? Date()) : nil })) {
+                        Text("Every month").tag(false)
+                        Text("Every two weeks").tag(true)
+                    }
+                    .labelsHidden()
+                }
+                .frame(width: 180, alignment: .leading)
+                if let first = debt.biweeklyFrom {
+                    Field("Next payment") {
+                        DateField(date: Binding(get: { first }, set: { debt.biweeklyFrom = $0 }), range: Date.distantPast ... .distantFuture)
+                    }
+                    .frame(width: 220, alignment: .leading)
+                } else {
+                    Field("Due day") { DayPicker(day: $debt.day) }.frame(width: 100, alignment: .leading)
+                }
+            }
+            HStack(alignment: .top, spacing: 12) {
                 if debt.kind.hasInterest {
                     Field("Interest a year, %") { PercentField(value: $debt.rate) }
                 }
@@ -269,10 +288,11 @@ struct PayoffSheet: View {
             let today = Date()
             let left = planner.remaining(of: debt, before: tomorrow(today))
             let due = planner.nextDue(of: debt, from: today)
-            let now = planner.payoff(balance: left, rate: debt.rate, payment: debt.payment, from: due)
+            let now = planner.payoff(of: debt, balance: left, payment: debt.payment, from: due)
             let step = max(Decimal(500), up(debt.payment / 10, to: 500))
             let more = Decimal(extra).rounded(to: step)
-            let then = planner.payoff(balance: max(0, left - once), rate: debt.rate, payment: debt.payment + more, from: due)
+            let then = planner.payoff(of: debt, balance: max(0, left - once), payment: debt.payment + more, from: due)
+            let biweekly = debt.biweeklyFrom != nil
             VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -294,7 +314,7 @@ struct PayoffSheet: View {
                     Text("What if you pay more?").font(.headline)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text("Each month")
+                            Text(LocalizedStringKey(biweekly ? "Each payment" : "Each month"))
                             Spacer()
                             Text("\((debt.payment + more).money(currency))  (+\(more.money(currency)))").monospacedDigit()
                         }
@@ -307,8 +327,9 @@ struct PayoffSheet: View {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Paid off by \(then.date.formatted(.dateTime.month(.wide).year()))").font(.body.weight(.semibold))
-                                Text(saved > 0 ? String(localized: "\(months) months sooner, \(saved.money(currency)) less interest")
-                                                : String(localized: "\(months) months sooner"))
+                                Text(biweekly ? String(localized: "\(months) payments sooner")
+                                     : saved > 0 ? String(localized: "\(months) months sooner, \(saved.money(currency)) less interest")
+                                     : String(localized: "\(months) months sooner"))
                                     .foregroundStyle(.secondary)
                             }
                         } icon: {
@@ -325,7 +346,8 @@ struct PayoffSheet: View {
                     Spacer()
                     Button("Close") { dismiss() }.buttonStyle(SecondaryButtonStyle()).keyboardShortcut(.cancelAction)
                     if more > 0 {
-                        Button("Pay \((debt.payment + more).money(currency)) a month") {
+                        Button(biweekly ? String(localized: "Pay \((debt.payment + more).money(currency)) each time")
+                                        : String(localized: "Pay \((debt.payment + more).money(currency)) a month")) {
                             var changed = debt
                             changed.payment += more
                             store.save(changed)

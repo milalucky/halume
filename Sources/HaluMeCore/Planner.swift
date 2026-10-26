@@ -44,10 +44,11 @@ public struct Payoff: Sendable, Hashable {
     /// The month of the last payment.
     public var date: Date
 
-    /// Month by month: interest added, then the payment; nil when the payment doesn't cover the interest.
-    static func compute(balance: Decimal, rate: Decimal, payment: Decimal) -> (months: Int, interest: Decimal)? {
+    /// Payment by payment: interest added, then the payment; nil when the payment doesn't cover the interest.
+    /// `months` counts payments (every two weeks for a biweekly debt).
+    static func compute(balance: Decimal, rate: Decimal, payment: Decimal, perYear: Int = 12) -> (months: Int, interest: Decimal)? {
         var left = balance, months = 0, interest: Decimal = 0
-        let monthly = rate / 1200
+        let monthly = rate / 100 / Decimal(perYear)
         while left > 0 {
             let charge = left * monthly
             guard payment > charge, months < 1200 else { return nil }
@@ -264,9 +265,12 @@ public struct Planner: Sendable {
                 out.append(Arrival(date: payday, kind: .vacationPay,
                                    amount: down(monthly / Decimal(string: "29.3")! * Decimal(days) * afterTaxShare(of: member, on: payday)), absence: absence.id))
             case .sickLeave:
-                // shortcut: average day = a year's salary / 365 and no cap on earnings; employers use two years with a cap.
+                // shortcut: average day from the current salary; employers use the two previous years' earnings.
                 let total = days(first, last) + 1
-                let daily = monthly * 12 / 365 * Decimal(absence.sickPercent) / 100 * afterTaxShare(of: member, on: last)
+                var average = monthly * 12 / 365
+                // Russia caps the average day at the two years' contribution limits / 730 (2024 + 2025 for 2026).
+                if budget.country == "RU" { average = min(average, Self.russiaSickDayCap) }
+                let daily = average * Decimal(absence.sickPercent) / 100 * afterTaxShare(of: member, on: last)
                 // The employer pays the first 3 days with the next payday; the Social Fund the rest about two weeks after.
                 if let next = paydays(of: member, from: add(1, to: last)!, to: add(60, to: last)!).first {
                     out.append(Arrival(date: next, kind: .sickPayEmployer, amount: down(daily * Decimal(min(3, total))), absence: absence.id))
@@ -280,6 +284,9 @@ public struct Planner: Sendable {
         }
         return out.filter { $0.date >= day(from) && $0.date <= day(to) }.sorted { $0.date < $1.date }
     }
+
+    /// (2 225 000 + 2 759 000) / 730: the most a sick day can be paid for in 2026.
+    static let russiaSickDayCap = Decimal(string: "6827.40")!
 
     /// All pay dates of a member in [from, to], one per day.
     public func paydays(of member: UUID, from: Date, to: Date) -> [Date] {
@@ -330,9 +337,14 @@ public struct Planner: Sendable {
         paydays(of: member, from: date, to: yearLater(date)).reduce(0) { $0 + expected(of: member, on: $1) }
     }
 
-    /// Opening money plus transfers marked done on paydays before `date`.
     /// Opening money, transfers marked done, withdrawals and interest that stays in the account, before `date`.
     public func balance(of envelope: Envelope, before date: Date) -> Decimal {
+        ledger(of: envelope, before: date).balance
+    }
+
+    /// The balance before `date` and the interest accrued since the last payout: banks count it daily
+    /// on the day's balance and pay it on the payout day.
+    func ledger(of envelope: Envelope, before date: Date) -> (balance: Decimal, accrued: Decimal) {
         let envelope = budget.terms(of: envelope)
         let date = day(date), opened = day(envelope.openedAt)
         var events: [(date: Date, change: Decimal?)] = []
@@ -350,17 +362,32 @@ public struct Planner: Sendable {
         for t in budget.transfers where day(t.date) < date && (t.from == envelope.id || t.to == envelope.id) {
             events.append((day(t.date), t.from == envelope.id ? -t.amount : t.amount))
         }
-        if envelope.holding.earnsInterest, envelope.rate > 0, !envelope.interestToCard, opened > .distantPast {
-            // nil change = interest day: the month's interest on what is there.
-            let last = envelope.maturity.map { min(day($0), add(-1, to: date)!) } ?? add(-1, to: date)!
-            if opened < last {
-                events += monthDays([envelope.interestDay], from: add(1, to: opened)!, to: last).map { ($0, nil) }
+        let earns = envelope.holding.earnsInterest && envelope.rate > 0 && opened > .distantPast
+        // Interest stops at a deposit's end.
+        let accrualEnd = envelope.maturity.map { min(add(1, to: day($0))!, date) } ?? date
+        if earns, opened < accrualEnd {
+            // nil change = a payout day.
+            events += monthDays([envelope.interestDay], from: add(1, to: opened)!, to: add(-1, to: accrualEnd)!).map { ($0, nil) }
+        }
+        // Payouts first on a shared day: they pay for the days before it.
+        events.sort { $0.date != $1.date ? $0.date < $1.date : ($0.change == nil && $1.change != nil) }
+        let daily = envelope.rate / 36_500
+        var total = envelope.opening, accrued: Decimal = 0, from = opened
+        func accrue(to end: Date) {
+            let end = min(end, accrualEnd)
+            if earns, end > from { accrued += total * daily * Decimal(days(from, end)); from = end }
+        }
+        for e in events {
+            accrue(to: e.date)
+            if let change = e.change {
+                total = max(0, total + change)
+            } else {
+                if !envelope.interestToCard { total += accrued }
+                accrued = 0
             }
         }
-        // shortcut: interest on the balance at the payout day, not the daily average banks use.
-        return events.sorted { $0.date < $1.date }.reduce(envelope.opening) { total, e in
-            max(0, total + (e.change ?? total * envelope.rate / 1200))
-        }
+        accrue(to: date)
+        return (total, accrued)
     }
 
     /// The next interest payout of a savings account or deposit, on or after `date`.
@@ -370,7 +397,7 @@ public struct Planner: Sendable {
         let start = day(date)
         guard let payout = monthDays([envelope.interestDay], from: start, to: calendar.date(byAdding: .month, value: 1, to: start)!).first,
               envelope.maturity.map({ payout <= day($0) }) ?? true else { return nil }
-        return (payout, down(balance(of: envelope, before: payout) * envelope.rate / 1200))
+        return (payout, down(ledger(of: envelope, before: payout).accrued))
     }
 
     /// Interest a year at the envelope's rate on `amount`.
@@ -412,10 +439,12 @@ public struct Planner: Sendable {
             let s = share(of: member, owner: debt.owner, split: debt.split, on: date)
             let left = remaining(of: debt, before: date)
             guard s > 0, left > 0 else { continue }
-            let amount = budget.convert(min(debt.payment, left), from: debt.currency) * s
-            let parts = placed(monthDays([debt.day], from: wideFrom, to: wideTo), slot: debt.slot, member: member, period: date, last: last)
+            // A biweekly debt can fall twice in one period; never more than what's left.
+            let parts = placed(dueDates(of: debt, from: wideFrom, to: wideTo), slot: debt.biweeklyFrom == nil ? debt.slot : nil,
+                               member: member, period: date, last: last)
             if let first = parts.first {
-                due.append((.debt(debt.id), debt.name, first.date, up(amount * parts.reduce(0) { $0 + $1.part })))
+                let owed = min(debt.payment * parts.reduce(0) { $0 + $1.part }, left)
+                due.append((.debt(debt.id), debt.name, first.date, up(budget.convert(owed, from: debt.currency) * s)))
             }
         }
         for sub in budget.subscriptions {
@@ -517,17 +546,21 @@ public struct Planner: Sendable {
 
     // MARK: Debts
 
-    /// What is left of a debt before `date`: its balance on `asOf`, plus monthly interest, minus payments marked done since.
+    /// What is left of a debt before `date`: its balance on `asOf`, plus interest on each due date, minus payments marked done since.
+    /// Interest is counted only up to the last payment marked done: after it, the app doesn't know what was paid.
     public func remaining(of debt: Debt, before date: Date) -> Decimal {
         let date = day(date), since = day(debt.asOf)
-        let payments = budget.paydays.filter { day($0.date) >= since && day($0.date) < date }
-            .sorted { $0.date < $1.date }
-            .flatMap(\.allocations)
-            .filter { $0.isDone && $0.target == .debt(debt.id) }
-        // shortcut: interest is added once per payment made, not by calendar month; close enough for a plan.
-        let monthly = debt.rate / 1200
         // Payments are in the budget's currency; the balance in the debt's.
-        return payments.reduce(debt.balance) { left, payment in max(0, left + left * monthly - budget.convert(payment.amount, to: debt.currency)) }
+        let payments: [(date: Date, amount: Decimal)] = budget.paydays.filter { day($0.date) >= since && day($0.date) < date }
+            .flatMap { p in p.allocations.filter { $0.isDone && $0.target == .debt(debt.id) }.map { (day(p.date), budget.convert($0.amount, to: debt.currency)) } }
+        var events = payments.map { (date: $0.date, amount: Optional($0.amount)) }
+        if debt.rate > 0, let lastPaid = payments.map(\.date).max() {
+            events += dueDates(of: debt, from: add(1, to: since)!, to: lastPaid).map { (date: $0, amount: nil) }
+        }
+        // Interest first on a shared day: a payment covers the period's interest.
+        events.sort { $0.date != $1.date ? $0.date < $1.date : ($0.amount == nil && $1.amount != nil) }
+        let periodRate = debt.rate / 100 / Decimal(debt.biweeklyFrom == nil ? 12 : 26)
+        return events.reduce(debt.balance) { left, e in max(0, e.amount.map { left - $0 } ?? left + left * periodRate) }
     }
 
     /// Months, interest and payoff date at a monthly payment; nil if the payment never covers the interest.
@@ -538,6 +571,14 @@ public struct Planner: Sendable {
         }
     }
 
+    /// Months (payments, for a biweekly debt), interest and payoff date; nil if the payment never covers the interest.
+    public func payoff(of debt: Debt, balance: Decimal, payment: Decimal, from date: Date) -> Payoff? {
+        guard debt.biweeklyFrom != nil else { return self.payoff(balance: balance, rate: debt.rate, payment: payment, from: date) }
+        return Payoff.compute(balance: balance, rate: debt.rate, payment: payment, perYear: 26).map { count, interest in
+            Payoff(months: count, interest: interest, date: add(14 * max(count - 1, 0), to: day(date))!)
+        }
+    }
+
     /// Monthly due dates on `day` in [from, to].
     public func dueDates(day: Int, from: Date, to: Date) -> [Date] {
         monthDays([day], from: self.day(from), to: self.day(to))
@@ -545,7 +586,20 @@ public struct Planner: Sendable {
 
     /// The next due day of a debt, today included.
     public func nextDue(of debt: Debt, from date: Date) -> Date {
-        monthDays([debt.day], from: day(date), to: calendar.date(byAdding: .month, value: 1, to: day(date))!).first ?? day(date)
+        dueDates(of: debt, from: date, to: calendar.date(byAdding: .month, value: 1, to: day(date))!).first ?? day(date)
+    }
+
+    /// A debt's payment dates in [from, to]: monthly on its day, or every two weeks starting on `biweeklyFrom`.
+    public func dueDates(of debt: Debt, from: Date, to: Date) -> [Date] {
+        let from = day(from), to = day(to)
+        guard let anchor = debt.biweeklyFrom.map(day) else { return monthDays([debt.day], from: from, to: to) }
+        var k = max(0, Int((Double(days(anchor, from)) / 14).rounded(.down)))
+        var out: [Date] = []
+        while let d = add(k * 14, to: anchor), d <= to {
+            if d >= from { out.append(d) }
+            k += 1
+        }
+        return out
     }
 
     // MARK: Subscriptions
@@ -652,7 +706,6 @@ public struct Planner: Sendable {
         return out.filter { $0 >= from && $0 <= to }
     }
 
-    // shortcut: weekends only, no public holidays; add a per-country holiday list when localizing.
     /// A payday on a day off moves to the working day before (or after); holidays count when there is a work calendar.
     func shifted(_ date: Date, _ shift: WeekendShift) -> Date {
         guard shift != .none else { return date }

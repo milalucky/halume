@@ -133,7 +133,7 @@ public enum TaxRules {
     }
 
     /// Federal + provincial income tax on a year's employment income.
-    /// Shortcuts: only the basic credits; Ontario's low-income tax reduction and Quebec's employment deduction are left out.
+    /// Shortcut: only the basic credits (no dependants, tuition, medical…).
     public static func canadaIncomeTax(annual: Decimal, province: String) -> Decimal {
         let c = canadaContributions(yearToDate: annual, province: province)
         let enhanced = c.pension - c.pensionBase + c.pension2     // deducted from income
@@ -148,10 +148,14 @@ public enum TaxRules {
         let bpa = rules.phase.map { phased(rules.bpa, $0, taxable) } ?? rules.bpa
         // Quebec credits only the basic amount; the others also credit the base pension plan and EI.
         let credits = province == "QC" ? bpa : bpa + c.pensionBase + c.ei
-        var provincial = max(0, progressive(taxable, rules.brackets) - lowest * credits)
+        // Quebec's deduction for workers: 6% of employment income, up to $1,450.
+        let provincialTaxable = province == "QC" ? max(0, taxable - min(annual * dec("0.06"), 1_450)) : taxable
+        var provincial = max(0, progressive(provincialTaxable, rules.brackets) - lowest * credits)
         switch province {
         case "ON":
             provincial += max(0, provincial - 5_818) * dec("0.20") + max(0, provincial - 7_446) * dec("0.36")
+            // Ontario tax reduction (T4127 factor S): twice $300 less the tax, never below zero.
+            provincial -= min(provincial, max(0, 2 * 300 - provincial))
             provincial += ontarioHealthPremium(taxable)
         case "BC":
             // B.C. tax reduction: $690, less 3.56% of income over $25,570.
