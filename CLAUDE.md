@@ -41,6 +41,7 @@ Plan money once per payday instead of logging every expense. Few people keep log
 - **Insights** (HaluMeCore/Insights.swift): runway (savings ÷ a month's costs + usual spending), net worth (savings + `Asset`s − debts, monthly history), who owes whom (shared costs paid from one person's account; `Settlement` marks), subscription review every 3 months (`Subscription.reviewed`), payday recap, what-if scenarios (a changed copy of the budget).
 - **Calendar** section: the country's production calendar (holiday names: Russia built in, others from date.nager.at), paydays, time off; pick days to plan a vacation or sick leave. History section: everything outside the plan, editable. Net worth section. Menu bar extra shows the amount a day.
 - Interest accrues daily and is paid on the payout day; debt interest is added on each due date up to the last payment marked done; debts can be paid every two weeks (`Debt.biweeklyFrom`). Russian sick pay is capped (2026: 6 827,40 a day).
+- **The method** (docs/method-2026-10-28.md): three kinds of envelopes — money that leaves (bills, subscriptions, debts), saving to spend (`Purpose.spend`), keeping (`Purpose.keep`; only these count in the runway); `Envelope.role` defaults from the goal. Payday: the leftover is noted, kept to spend or put into an envelope (`Inflow.kind = .leftover`). A balance check below plan offers to cover the gap from an envelope (`.fromSaving`). Accounts are checked monthly against their envelopes (`.reconcile` / withdrawal, `Account.checked`). Only `Inflow.isNewMoney` counts as income. Sidebar in groups (Today · Envelopes · Plans · Overview), sections can be hidden; "How HaluMe works" shows once and lives in Help.
 - **No** expense logging and no bank connections.
 
 ## Households
@@ -62,7 +63,7 @@ One model for a single person, a fully shared or a partly shared budget. Every i
 
 ## Next
 
-- Work lists: `docs/feedback-2026-10-27.md`, `docs/work-2026-10-27b.md` (with status).
+- Work lists: `docs/feedback-2026-10-27.md`, `docs/work-2026-10-27b.md`, `docs/method-2026-10-28.md` (with status).
 
 - CloudKit sync and partner sharing → iPhone app + widget → Watch → Halu notch glance.
 - Irregular income ("live on last month's money" buffer).

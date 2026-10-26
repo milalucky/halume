@@ -4,14 +4,27 @@ import SwiftUI
 /// The app after onboarding: a sidebar of sections and the selected page.
 struct MainView: View {
     @Environment(BudgetStore.self) private var store
+    /// Sections switched off in Settings, comma-separated raw values.
+    @AppStorage("hiddenSections") private var hiddenRaw = ""
+    @AppStorage("seenHowItWorks") private var seenHowItWorks = false
+    private var hidden: Set<String> { Set(hiddenRaw.split(separator: ",").map(String.init)) }
 
     var body: some View {
         @Bindable var store = store
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 2) {
                 Brand().padding(.horizontal, 10).padding(.bottom, 14)
-                ForEach(Section.allCases) { section in
-                    SidebarItem(section: section, selected: store.section == section) { store.section = section }
+                ForEach(SectionGroup.allCases, id: \.self) { group in
+                    let sections = group.sections.filter { !hidden.contains($0.rawValue) || store.section == $0 }
+                    if !sections.isEmpty {
+                        if let title = group.title {
+                            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                                .padding(.horizontal, 10).padding(.top, 14).padding(.bottom, 2)
+                        }
+                        ForEach(sections) { section in
+                            SidebarItem(section: section, selected: store.section == section) { store.section = section }
+                        }
+                    }
                 }
                 Spacer()
             }
@@ -59,6 +72,7 @@ struct MainView: View {
                 case .saveWish(let id): SaveForWishSheet(wishID: id)
                 case .asset(let asset): AssetEditor(asset: asset)
                 case .accountCheck(let id): AccountCheckSheet(accountID: id)
+                case .howItWorks: HowItWorksSheet()
                 case .whatIf: WhatIfSheet()
                 case .recap: RecapSheet()
                 }
@@ -66,10 +80,40 @@ struct MainView: View {
             .environment(store)
             .tint(Palette.orange)
         }
+        .onAppear {
+            // Once, for everyone (new and existing budgets): the method in four steps.
+            if !seenHowItWorks, store.sheet == nil, !CommandLine.arguments.contains("--demo") {
+                seenHowItWorks = true
+                store.sheet = .howItWorks
+            }
+        }
         .confirmationDialog("Start over?", isPresented: $store.confirmingStartOver) {
             Button("Delete Budget and Start Over", role: .destructive) { store.startOver() }
         } message: {
             Text("Your plan, savings and history will be deleted. This can't be undone.")
+        }
+    }
+}
+
+/// The sidebar in four parts: today, the envelopes, plans, and looking back.
+enum SectionGroup: CaseIterable {
+    case today, envelopes, plans, overview
+
+    var title: LocalizedStringKey? {
+        switch self {
+        case .today: nil
+        case .envelopes: "Envelopes"
+        case .plans: "Plans"
+        case .overview: "Overview"
+        }
+    }
+
+    var sections: [Section] {
+        switch self {
+        case .today: [.today]
+        case .envelopes: [.savings, .debts, .subscriptions]
+        case .plans: [.calendar, .projects, .wishlist]
+        case .overview: [.worth, .history, .stats]
         }
     }
 }

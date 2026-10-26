@@ -20,6 +20,7 @@ enum Sheet: Identifiable, Hashable {
     case saveWish(UUID)
     case asset(Asset)
     case accountCheck(UUID)
+    case howItWorks
     case whatIf
     case recap
 
@@ -44,6 +45,7 @@ enum Sheet: Identifiable, Hashable {
         case .saveWish(let id): "save-wish-\(id)"
         case .asset(let a): "asset-\(a.id)"
         case .accountCheck(let id): "account-check-\(id)"
+        case .howItWorks: "how-it-works"
         case .whatIf: "what-if"
         case .recap: "recap"
         }
@@ -63,6 +65,7 @@ enum Sheet: Identifiable, Hashable {
         case "wish": budget?.wishes.first.map { .wish($0) }
         case "project": .newProject
         case "whatif": .whatIf
+        case "how": .howItWorks
         case "recap": .recap
         case "inflow": budget?.inflows.first.map { .inflow($0) }
         case "asset": .asset(Asset(name: "", owner: .shared, value: 0))
@@ -72,7 +75,8 @@ enum Sheet: Identifiable, Hashable {
 }
 
 enum Section: String, CaseIterable, Identifiable {
-    case today, calendar, savings, worth, debts, subscriptions, projects, wishlist, history, stats
+    // In sidebar order (see SectionGroup): ⌘1…⌘9 follow it.
+    case today, savings, debts, subscriptions, calendar, projects, wishlist, worth, history, stats
     var id: Self { self }
 }
 

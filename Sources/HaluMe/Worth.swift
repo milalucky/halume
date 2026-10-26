@@ -119,6 +119,7 @@ struct RunwayCard: View {
                 Text("6 months").font(.caption2)
             }
             .foregroundStyle(.tertiary)
+            Text("Only savings you keep count. Savings for a planned cost are already spoken for.").font(.caption).foregroundStyle(.tertiary)
             if runway.locked > 0 {
                 Text("Including \(runway.locked.money(currency)) in deposits you can't take out early.").font(.caption).foregroundStyle(.secondary)
             }

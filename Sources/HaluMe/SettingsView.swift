@@ -4,6 +4,8 @@ import SwiftUI
 /// HaluMe → Settings… (⌘,).
 struct SettingsView: View {
     @Environment(BudgetStore.self) private var store
+    @AppStorage("hiddenSections") private var hiddenSections = ""
+    private var hiddenSet: Set<String> { Set(hiddenSections.split(separator: ",").map(String.init)) }
     @AppStorage("menuBar") private var menuBar = true
     @AppStorage(Reminders.paydayKey) private var payday = false
     @AppStorage(Reminders.billsKey) private var bills = false
@@ -45,6 +47,18 @@ struct SettingsView: View {
                 }
                 .onChange(of: numbers) { store.look += 1 }
                 Toggle("Amount a day in the menu bar", isOn: $menuBar)
+                LabeledContent("Sidebar") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Section.allCases.filter { $0 != .today }) { section in
+                            Toggle(isOn: Binding(get: { !hiddenSet.contains(section.rawValue) }, set: { show in
+                                var set = hiddenSet
+                                if show { set.remove(section.rawValue) } else { set.insert(section.rawValue) }
+                                hiddenSections = set.sorted().joined(separator: ",")
+                            })) { Text(section.title) }
+                        }
+                        Text("Hidden sections stay in the View menu.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             } header: {
                 Text("Look")
             }

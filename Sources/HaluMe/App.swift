@@ -63,6 +63,9 @@ struct HaluMeApp: App {
                 Divider()
                 Button("Start Over…") { store.confirmingStartOver = true }
             }
+            CommandGroup(replacing: .help) {
+                Button("How HaluMe Works") { store.sheet = .howItWorks }
+            }
             CommandGroup(before: .sidebar) {
                 ForEach(Array(Section.allCases.enumerated()), id: \.element) { i, section in
                     // ⌘1…⌘9 for the first nine; a two-digit Character would crash.
