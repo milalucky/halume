@@ -19,6 +19,7 @@ enum Sheet: Identifiable, Hashable {
     case transfer(Transfer)
     case saveWish(UUID)
     case asset(Asset)
+    case accountCheck(UUID)
     case whatIf
     case recap
 
@@ -42,6 +43,7 @@ enum Sheet: Identifiable, Hashable {
         case .transfer(let t): "transfer-\(t.id)"
         case .saveWish(let id): "save-wish-\(id)"
         case .asset(let a): "asset-\(a.id)"
+        case .accountCheck(let id): "account-check-\(id)"
         case .whatIf: "what-if"
         case .recap: "recap"
         }

@@ -58,6 +58,7 @@ struct MainView: View {
                 case .transfer(let transfer): TransferSheet(transfer: transfer)
                 case .saveWish(let id): SaveForWishSheet(wishID: id)
                 case .asset(let asset): AssetEditor(asset: asset)
+                case .accountCheck(let id): AccountCheckSheet(accountID: id)
                 case .whatIf: WhatIfSheet()
                 case .recap: RecapSheet()
                 }

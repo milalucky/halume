@@ -88,11 +88,28 @@ struct AccountsSection: View {
                                 if !account.canWithdraw {
                                     Label("Can't take money out early", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
                                 }
+                                // Room for the check link drawn over the card (a button can't sit inside another).
+                                if !inside.isEmpty { Color.clear.frame(height: 16) }
                             }
                             .card()
                             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         }
                         .buttonStyle(.plain)
+                        .overlay(alignment: .bottomLeading) {
+                            if !inside.isEmpty {
+                                let stale = account.checked.map { Date().timeIntervalSince($0) > 30 * 86_400 } ?? true
+                                Button { store.sheet = .accountCheck(account.id) } label: {
+                                    Label(account.checked.map { String(localized: "Checked \($0.formatted(.relative(presentation: .named)))") }
+                                          ?? String(localized: "Check the balance"),
+                                          systemImage: stale ? "exclamationmark.circle" : "checkmark.seal")
+                                        .font(.caption)
+                                        .foregroundStyle(stale ? Palette.orange : .secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(18)
+                                .help("Once a month: compare what the bank shows with what HaluMe expects")
+                            }
+                        }
                     }
                 }
             }
@@ -258,5 +275,66 @@ struct PaySlotField: View {
             }
             .frame(width: 240, alignment: .leading)
         }
+    }
+}
+
+/// Once a month: does the bank show what the envelopes say? A difference goes into (or out of) one of them.
+struct AccountCheckSheet: View {
+    @Environment(BudgetStore.self) private var store
+    let accountID: UUID
+    @State private var actual: Decimal?
+    @State private var envelope: UUID?
+
+    var body: some View {
+        if let planner = store.planner, let account = planner.budget.accounts.first(where: { $0.id == accountID }) {
+            let currency = planner.budget.currency
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+            let inside = planner.budget.envelopes.filter { $0.account == account.id }
+            let expected = inside.reduce(Decimal(0)) { $0 + planner.balance(of: $1, before: tomorrow) }.rounded()
+            let diff = (actual ?? expected) - expected
+            SheetFrame(title: "Check \(account.name)", subtitle: "Open your bank and enter what this account holds now.",
+                       action: "Save", canSave: actual != nil && (diff == 0 || envelope != nil),
+                       save: { store.reconcile(account.id, difference: diff, envelope: envelope) }) {
+                StatRow {
+                    Stat(label: "HaluMe expects", value: expected.money(currency))
+                    Stat(label: "Difference", value: actual == nil ? "—" : (diff > 0 ? "+" : "") + diff.money(currency))
+                }
+                Field("In the bank now") { AmountField(optional: $actual, currency: currency, placeholder: "0") }.frame(width: 220, alignment: .leading)
+                if actual != nil {
+                    if diff == 0 {
+                        Label("It matches.", systemImage: "checkmark.circle").foregroundStyle(Palette.green)
+                    } else {
+                        Field(LocalizedStringKey(diff > 0 ? "Add the extra to" : "Take the missing part from"),
+                              hint: LocalizedStringKey(diff > 0 ? "Often it's interest, or money you put in and didn't record." : "Often it's money taken out and not recorded.")) {
+                            Picker("Envelope", selection: $envelope) {
+                                Text("Choose").tag(UUID?.none)
+                                ForEach(inside) { Text($0.name).tag(UUID?.some($0.id)) }
+                            }
+                            .labelsHidden()
+                        }
+                    }
+                }
+            }
+            .onAppear { envelope = inside.count == 1 ? inside[0].id : nil }
+        }
+    }
+}
+
+extension BudgetStore {
+    /// Books an account check: more than expected goes into an envelope, less comes out of it.
+    func reconcile(_ account: UUID, difference: Decimal, envelope: UUID?) {
+        guard var budget, let me else { return }
+        if let envelope, difference != 0 {
+            if difference > 0 {
+                var inflow = Inflow(member: me, amount: difference, note: String(localized: "Account check"),
+                                    allocations: [Allocation(target: .envelope(envelope), amount: difference, isDone: true)])
+                inflow.kind = .reconcile
+                budget.inflows.append(inflow)
+            } else {
+                budget.withdrawals.append(Withdrawal(envelope: envelope, amount: -difference, note: String(localized: "Account check")))
+            }
+        }
+        if let i = budget.accounts.firstIndex(where: { $0.id == account }) { budget.accounts[i].checked = Date() }
+        self.budget = budget
     }
 }
