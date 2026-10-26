@@ -367,6 +367,24 @@ multi.paydays = [paidUSD]
 mpp = Planner(multi, calendar: calendar)
 check(mpp.remaining(of: usdDebt, before: d(2026, 11, 10)) == 900, "the dollar balance goes down by $100")
 
+// Accounts: two envelopes in one 12% savings account get its terms; interest to a card leaves balances alone.
+var banked = budget
+banked.paydays = []
+let ozonAccount = Account(name: "Ozon savings", kind: .savings, owner: .member(me.id), rate: 12, interestDay: 1)
+let cushionIn = Envelope(owner: .member(me.id), name: "Cushion", goal: .open, opening: 100_000, openedAt: d(2026, 9, 15), account: ozonAccount.id)
+let tripIn = Envelope(owner: .member(me.id), name: "Trip", goal: .open, opening: 50_000, openedAt: d(2026, 9, 15), account: ozonAccount.id)
+banked.accounts = [ozonAccount]
+banked.envelopes = [cushionIn, tripIn]
+var bp = Planner(banked, calendar: calendar)
+check(bp.balance(of: cushionIn, before: d(2026, 10, 2)) == 101_000 && bp.balance(of: tripIn, before: d(2026, 10, 2)) == 50_500,
+      "account interest shared by its envelopes")
+let card = Account(name: "T-Bank card", kind: .card, owner: .member(me.id))
+banked.accounts[0].interestTo = card.id
+banked.accounts.append(card)
+bp = Planner(banked, calendar: calendar)
+check(bp.balance(of: cushionIn, before: d(2026, 10, 2)) == 100_000 && bp.nextInterest(of: cushionIn, from: d(2026, 10, 25))?.amount == 1_000,
+      "interest paid to a card")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),

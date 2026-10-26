@@ -79,6 +79,8 @@ struct PlanList: View {
     let currency: String
     var weekly = false
     var onEditPlan: (() -> Void)?
+    /// "from T-Bank card" for a line, when known.
+    var source: ((Target) -> String?)?
     /// nil shows the list read-only.
     let toggle: ((Target) -> Void)?
 
@@ -162,7 +164,11 @@ struct PlanList: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(line.target == .carry ? String(localized: "Keep for \(plan.next.formatted(.dateTime.day().month(.wide)))") : line.name)
                     .strikethrough(done, color: .secondary).foregroundStyle(done ? .secondary : .primary)
-                Text(line.target.kind).font(.caption).foregroundStyle(.tertiary)
+                if let from = source?(line.target) {
+                    (Text(line.target.kind) + Text(" · ") + Text(from)).font(.caption).foregroundStyle(.tertiary)
+                } else {
+                    Text(line.target.kind).font(.caption).foregroundStyle(.tertiary)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 1) {

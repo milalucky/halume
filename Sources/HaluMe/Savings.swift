@@ -15,8 +15,10 @@ struct SavingsPage: View {
                 if planner.budget.envelopes.isEmpty {
                     EmptyState(icon: "tray", title: "No savings yet",
                                text: "Add a goal, an emergency fund or a yearly expense, and part of each pay goes there first.")
+                    AccountsSection(planner: planner)
                 } else {
                     SavingsSummary(planner: planner, today: Date())
+                    AccountsSection(planner: planner)
                     SavingsGrid(planner: planner, today: Date())
                     SavingsTips(planner: planner, today: Date())
                 }
@@ -61,8 +63,12 @@ struct SavingsGrid: View {
                         Spacer()
                         OwnerBadge(owner: envelope.owner, hidden: envelope.hidden, revealOn: envelope.revealOn)
                             .font(.caption).foregroundStyle(.tertiary)
-                        Image(systemName: envelope.holding.icon).font(.caption).foregroundStyle(.tertiary)
-                            .help(Text(envelope.holding.title))
+                        if let account = budget.accounts.first(where: { $0.id == envelope.account }) {
+                            Text(account.name).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                        } else {
+                            Image(systemName: envelope.holding.icon).font(.caption).foregroundStyle(.tertiary)
+                                .help(Text(envelope.holding.title))
+                        }
                     }
                     Text(balance.money(budget.currency))
                         .font(.system(size: 26, weight: .medium, design: .rounded))
@@ -74,7 +80,7 @@ struct SavingsGrid: View {
                     }
                     Text(caption(envelope, currency: budget.currency)).font(.caption).foregroundStyle(.secondary)
                     if let interest = planner.nextInterest(of: envelope, from: today) {
-                        Text("\(envelope.rate.formatted())% · +\(interest.amount.money(budget.currency)) \(interest.date.relativeDay)")
+                        Text("\(budget.terms(of: envelope).rate.formatted())% · +\(interest.amount.money(budget.currency)) \(interest.date.relativeDay)")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(Palette.green)
                     }

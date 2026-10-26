@@ -330,6 +330,7 @@ public struct Planner: Sendable {
     /// Opening money plus transfers marked done on paydays before `date`.
     /// Opening money, transfers marked done, withdrawals and interest that stays in the account, before `date`.
     public func balance(of envelope: Envelope, before date: Date) -> Decimal {
+        let envelope = budget.terms(of: envelope)
         let date = day(date), opened = day(envelope.openedAt)
         var events: [(date: Date, change: Decimal?)] = []
         for payday in budget.paydays where day(payday.date) < date {
@@ -355,6 +356,7 @@ public struct Planner: Sendable {
 
     /// The next interest payout of a savings account or deposit, on or after `date`.
     public func nextInterest(of envelope: Envelope, from date: Date) -> (date: Date, amount: Decimal)? {
+        let envelope = budget.terms(of: envelope)
         guard envelope.holding.earnsInterest, envelope.rate > 0 else { return nil }
         let start = day(date)
         guard let payout = monthDays([envelope.interestDay], from: start, to: calendar.date(byAdding: .month, value: 1, to: start)!).first,

@@ -712,3 +712,26 @@
 "Updated %@" = "Обновлено %@";
 "Amounts in other currencies count in %@ at these rates. They update by themselves; type your own if your bank's differ." = "Суммы в других валютах пересчитываются в %@ по этим курсам. Они обновляются сами; впишите свои, если в вашем банке другие.";
 "≈ %@ %@" = "≈ %@ %@";
+
+/* Accounts */
+"Accounts" = "Счета";
+"Add account" = "Добавить счёт";
+"Add the places your money lives: a card, a savings account, a deposit. Several savings can share one account; interest follows its terms." = "Добавьте места, где лежат деньги: карта, накопительный счёт, вклад. На одном счёте может быть несколько накоплений, проценты считаются по условиям счёта.";
+"No savings here yet" = "Здесь пока нет накоплений";
+"%@%% · +%@ a month" = "%@%% · +%@ в месяц";
+"Can't take money out early" = "Снять досрочно нельзя";
+"Card" = "Карта";
+"New account" = "Новый счёт";
+"Edit account" = "Изменить счёт";
+"Just a name to tell your accounts apart. HaluMe never asks for account numbers." = "Только название, чтобы различать счета. HaluMe никогда не спрашивает реквизиты.";
+"Delete Account" = "Удалить счёт";
+"e.g. Ozon, savings" = "Например, Озон, накопительный";
+"Type" = "Тип";
+"Interest goes" = "Проценты идут";
+"Stays here" = "Остаются на счёте";
+"Money can be taken out any time" = "Можно снять в любой момент";
+"Where it lives" = "Где лежат";
+"Not set" = "Не указано";
+"New account…" = "Новый счёт…";
+"Create Account" = "Создать счёт";
+"Paid from" = "Оплачивается с";

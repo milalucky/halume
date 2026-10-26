@@ -49,6 +49,7 @@ struct MainView: View {
                 case .newProject: NewProjectSheet()
                 case .task(let project, let stage, let task): TaskEditor(projectID: project, stageID: stage, task: task)
                 case .rates(let id): RatesSheet(projectID: id)
+                case .account(let account): AccountEditor(account: account)
                 }
             }
             .environment(store)
@@ -166,7 +167,7 @@ struct TodayPage: View {
                         }
                     }
                     PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency, weekly: budget.plansByWeek,
-                             onEditPlan: { store.sheet = .plan }) {
+                             onEditPlan: { store.sheet = .plan }, source: { budget.source(of: $0) }) {
                         store.toggle($0, payday: start)
                     }
                     ComingUp(planner: planner, today: today)

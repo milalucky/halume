@@ -61,7 +61,7 @@ extension Planner {
             let mine = Set(budget.envelopes.filter { share(of: member, owner: $0.owner, split: $0.split, on: start) > 0 }.map(\.id))
             let withdrawn = budget.withdrawals.filter { mine.contains($0.envelope) && day($0.date) >= start && day($0.date) < end }
                 .reduce(0) { $0 + $1.amount }
-            let interest = budget.envelopes.filter { mine.contains($0.id) && $0.holding.earnsInterest && $0.rate > 0 }
+            let interest = budget.envelopes.map(budget.terms(of:)).filter { mine.contains($0.id) && $0.holding.earnsInterest && $0.rate > 0 }
                 .reduce(Decimal(0)) { total, envelope in
                     total + monthDays([envelope.interestDay], from: start, to: add(-1, to: end)!)
                         .filter { payout in payout > day(envelope.openedAt) && envelope.maturity.map { payout <= day($0) } ?? true }

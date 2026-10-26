@@ -13,6 +13,7 @@ enum Sheet: Identifiable, Hashable {
     case newProject
     case task(project: UUID, stage: UUID, task: ProjectTask)
     case rates(UUID)
+    case account(Account)
 
     var id: String {
         switch self {
@@ -28,6 +29,7 @@ enum Sheet: Identifiable, Hashable {
         case .newProject: "new-project"
         case .task(_, _, let t): "task-\(t.id)"
         case .rates(let id): "rates-\(id)"
+        case .account(let a): "account-\(a.id)"
         }
     }
 
@@ -260,6 +262,18 @@ final class BudgetStore {
 }
 
 extension Budget {
+    /// Which account a plan line is paid from or goes into, by name.
+    func source(of target: Target) -> String? {
+        let id: UUID? = switch target {
+        case .bill(let i): bills.first { $0.id == i }?.payFrom
+        case .debt(let i): debts.first { $0.id == i }?.payFrom
+        case .subscription(let i): subscriptions.first { $0.id == i }?.payFrom
+        case .envelope(let i): envelopes.first { $0.id == i }?.account
+        default: nil
+        }
+        return id.flatMap { a in accounts.first { $0.id == a }?.name }
+    }
+
     /// Daily pay is planned week by week.
     var plansByWeek: Bool {
         if case .daily = incomes.first?.schedule { true } else { false }

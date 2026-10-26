@@ -16,6 +16,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var subscriptions: [Subscription]
     public var withdrawals: [Withdrawal]
     public var absences: [Absence]
+    public var accounts: [Account]
     public var wishes: [Wish]
     public var reservations: [Reservation]
     public var projects: [Project]
@@ -34,7 +35,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         self.id = id; self.name = name; self.currency = currency; self.country = ""; self.members = members
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
-        self.absences = []; self.workCalendar = nil; self.wishes = []; self.reservations = []; self.projects = []
+        self.absences = []; self.accounts = []; self.workCalendar = nil; self.wishes = []; self.reservations = []; self.projects = []
         self.rates = [:]; self.ratesUpdated = nil
         self.paydays = paydays; self.checks = checks
     }
@@ -54,6 +55,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         subscriptions = try c.decodeIfPresent([Subscription].self, forKey: .subscriptions) ?? []
         withdrawals = try c.decodeIfPresent([Withdrawal].self, forKey: .withdrawals) ?? []
         absences = try c.decodeIfPresent([Absence].self, forKey: .absences) ?? []
+        accounts = try c.decodeIfPresent([Account].self, forKey: .accounts) ?? []
         wishes = try c.decodeIfPresent([Wish].self, forKey: .wishes) ?? []
         reservations = try c.decodeIfPresent([Reservation].self, forKey: .reservations) ?? []
         projects = try c.decodeIfPresent([Project].self, forKey: .projects) ?? []
@@ -155,6 +157,8 @@ public struct Bill: Codable, Sendable, Hashable, Identifiable {
     /// nil: the budget's currency.
     public var currency: String?
     public var day: Int
+    /// The account it's paid from.
+    public var payFrom: UUID?
     public var split: Split
 
     public init(id: UUID = UUID(), owner: Owner, name: String, amount: Decimal, currency: String? = nil, day: Int, split: Split = .equal) {
@@ -203,16 +207,18 @@ public struct Envelope: Codable, Sendable, Hashable, Identifiable {
     /// Only the owner sees it (a gift for the partner), until `revealOn` if set.
     public var hidden: Bool
     public var revealOn: Date?
+    /// The account the money lives in; its terms (rate, payout day) replace the ones above.
+    public var account: UUID?
 
     public init(id: UUID = UUID(), owner: Owner, name: String, goal: Goal, priority: Int = 0,
                 split: Split = .equal, opening: Decimal = 0, openedAt: Date = Date(),
                 holding: Holding = .card, rate: Decimal = 0, interestDay: Int = 1,
-                interestToCard: Bool = false, maturity: Date? = nil, hidden: Bool = false, revealOn: Date? = nil) {
+                interestToCard: Bool = false, maturity: Date? = nil, hidden: Bool = false, revealOn: Date? = nil, account: UUID? = nil) {
         self.id = id; self.owner = owner; self.name = name; self.goal = goal
         self.priority = priority; self.split = split; self.opening = opening; self.openedAt = openedAt
         self.holding = holding; self.rate = rate; self.interestDay = interestDay
         self.interestToCard = interestToCard; self.maturity = maturity
-        self.hidden = hidden; self.revealOn = revealOn
+        self.hidden = hidden; self.revealOn = revealOn; self.account = account
     }
 
     public init(from decoder: Decoder) throws {
@@ -232,6 +238,7 @@ public struct Envelope: Codable, Sendable, Hashable, Identifiable {
         maturity = try c.decodeIfPresent(Date.self, forKey: .maturity)
         hidden = try c.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
         revealOn = try c.decodeIfPresent(Date.self, forKey: .revealOn)
+        account = try c.decodeIfPresent(UUID.self, forKey: .account)
     }
 }
 
@@ -350,6 +357,8 @@ public struct Debt: Codable, Sendable, Hashable, Identifiable {
     /// The debt's currency (balance and payment); nil: the budget's.
     public var currency: String?
     public var day: Int
+    /// The account it's paid from.
+    public var payFrom: UUID?
     public var split: Split
 
     public init(id: UUID = UUID(), owner: Owner, name: String, kind: DebtKind, original: Decimal? = nil,
@@ -381,6 +390,8 @@ public struct Subscription: Codable, Sendable, Hashable, Identifiable {
     public var isActive: Bool
     public var category: String
     public var note: String
+    /// The account it's paid from.
+    public var payFrom: UUID?
     public var split: Split
 
     public init(id: UUID = UUID(), owner: Owner, name: String, amount: Decimal, currency: String? = nil, cycle: Cycle = .monthly,
@@ -443,5 +454,61 @@ extension Budget {
         codes.formUnion(incomes.compactMap(\.currency)); codes.formUnion(projects.flatMap { $0.tasks.compactMap(\.currency) })
         codes.remove(currency)
         return codes
+    }
+}
+
+public enum AccountKind: String, Codable, Sendable, Hashable, CaseIterable {
+    case card, savings, deposit, cash, investments
+
+    public var earnsInterest: Bool { self == .savings || self == .deposit }
+}
+
+/// A place money lives: a card, a savings account, a deposit, cash. Just a name — no account numbers.
+public struct Account: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var name: String
+    public var kind: AccountKind
+    public var owner: Owner
+    public var currency: String?
+    /// Annual interest, percent, paid monthly on `interestDay`.
+    public var rate: Decimal
+    public var interestDay: Int
+    /// Where the interest goes; nil keeps it in this account.
+    public var interestTo: UUID?
+    /// Money can be taken out any time (savings accounts usually; deposits not).
+    public var canWithdraw: Bool
+    /// A deposit's end date.
+    public var maturity: Date?
+
+    public init(id: UUID = UUID(), name: String, kind: AccountKind, owner: Owner, currency: String? = nil, rate: Decimal = 0,
+                interestDay: Int = 1, interestTo: UUID? = nil, canWithdraw: Bool = true, maturity: Date? = nil) {
+        self.id = id; self.name = name; self.kind = kind; self.owner = owner; self.currency = currency; self.rate = rate
+        self.interestDay = interestDay; self.interestTo = interestTo; self.canWithdraw = canWithdraw; self.maturity = maturity
+    }
+}
+
+extension AccountKind {
+    var holding: Holding {
+        switch self {
+        case .card: .card
+        case .savings: .savingsAccount
+        case .deposit: .deposit
+        case .cash: .cash
+        case .investments: .investments
+        }
+    }
+}
+
+extension Budget {
+    /// An envelope with its account's terms (rate, payout day, where interest goes) in place of its own.
+    public func terms(of envelope: Envelope) -> Envelope {
+        guard let id = envelope.account, let account = accounts.first(where: { $0.id == id }) else { return envelope }
+        var e = envelope
+        e.holding = account.kind.holding
+        e.rate = account.rate
+        e.interestDay = account.interestDay
+        e.interestToCard = account.interestTo != nil
+        e.maturity = account.maturity
+        return e
     }
 }

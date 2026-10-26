@@ -369,6 +369,7 @@ struct PayEditor: View {
 }
 
 struct BillsEditor: View {
+    @Environment(BudgetStore.self) private var store
     @Binding var bills: [Bill]
     let currency: String
     let member: UUID
@@ -390,7 +391,10 @@ struct BillsEditor: View {
                             .frame(width: 84, alignment: .leading)
                         RemoveButton { bills.removeAll { $0.id == bill.id } }
                     }
-                    OwnerFields(owner: $bill.owner, split: $bill.split)
+                    HStack(alignment: .top, spacing: 12) {
+                        OwnerFields(owner: $bill.owner, split: $bill.split)
+                        PayFromField(account: $bill.payFrom)
+                    }
                 }
             }
             .card(padding: 20)
@@ -402,6 +406,7 @@ struct BillsEditor: View {
 }
 
 struct SavingsEditor: View {
+    @Environment(BudgetStore.self) private var store
     @Binding var envelopes: [Envelope]
     let currency: String
     let member: UUID
@@ -448,7 +453,11 @@ struct SavingsEditor: View {
                         .frame(width: 150, alignment: .leading)
                     Spacer(minLength: 0)
                 }
-                HoldingFields(envelope: $envelope)
+                if store.budget != nil {
+                    AccountPicker(envelope: $envelope)
+                } else {
+                    HoldingFields(envelope: $envelope)
+                }
                 OwnerFields(owner: $envelope.owner, split: $envelope.split)
                 HiddenFields(envelope: $envelope)
             }

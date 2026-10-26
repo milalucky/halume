@@ -215,7 +215,10 @@ struct SubscriptionEditor: View {
                     .labelsHidden()
                 }
             }
-            OwnerFields(owner: $subscription.owner, split: $subscription.split)
+            HStack(alignment: .top, spacing: 12) {
+                OwnerFields(owner: $subscription.owner, split: $subscription.split)
+                PayFromField(account: $subscription.payFrom)
+            }
             Toggle("Free trial", isOn: $hasTrial)
             if hasTrial {
                 Field("Trial ends", hint: "The first charge comes this day. You'll get a reminder two days before.") {

@@ -1,0 +1,240 @@
+import HaluMeCore
+import SwiftUI
+
+extension BudgetStore {
+    func save(_ account: Account) {
+        guard var budget else { return }
+        if let i = budget.accounts.firstIndex(where: { $0.id == account.id }) { budget.accounts[i] = account } else { budget.accounts.append(account) }
+        self.budget = budget
+    }
+
+    /// Deletes an account; envelopes and bills that used it keep their money but lose the link.
+    func deleteAccount(_ id: UUID) {
+        guard var budget else { return }
+        budget.accounts.removeAll { $0.id == id }
+        for i in budget.accounts.indices where budget.accounts[i].interestTo == id { budget.accounts[i].interestTo = nil }
+        for i in budget.envelopes.indices where budget.envelopes[i].account == id { budget.envelopes[i].account = nil }
+        for i in budget.bills.indices where budget.bills[i].payFrom == id { budget.bills[i].payFrom = nil }
+        for i in budget.debts.indices where budget.debts[i].payFrom == id { budget.debts[i].payFrom = nil }
+        for i in budget.subscriptions.indices where budget.subscriptions[i].payFrom == id { budget.subscriptions[i].payFrom = nil }
+        self.budget = budget
+    }
+}
+
+extension AccountKind {
+    var title: LocalizedStringKey {
+        switch self {
+        case .card: "Card"
+        case .savings: "Savings account"
+        case .deposit: "Deposit"
+        case .cash: "Cash"
+        case .investments: "Investments"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .card: "creditcard"
+        case .savings: "percent"
+        case .deposit: "lock"
+        case .cash: "banknote"
+        case .investments: "chart.line.uptrend.xyaxis"
+        }
+    }
+}
+
+/// Savings page: the accounts, what's in each and what they earn.
+struct AccountsSection: View {
+    @Environment(BudgetStore.self) private var store
+    let planner: Planner
+
+    var body: some View {
+        let budget = planner.budget
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Accounts").font(.headline)
+                Spacer()
+                Button { store.sheet = .account(Account(name: "", kind: .savings, owner: .member(store.me ?? UUID()))) } label: {
+                    Label("Add account", systemImage: "plus")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+            if budget.accounts.isEmpty {
+                Text("Add the places your money lives: a card, a savings account, a deposit. Several savings can share one account; interest follows its terms.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 12)], spacing: 12) {
+                    ForEach(budget.accounts) { account in
+                        let inside = budget.envelopes.filter { $0.account == account.id }
+                        let total = inside.reduce(Decimal(0)) { $0 + planner.balance(of: $1, before: tomorrow) }
+                        let interest = inside.compactMap { planner.nextInterest(of: $0, from: Date())?.amount }.reduce(0, +)
+                        Button { store.sheet = .account(account) } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: account.kind.icon).foregroundStyle(Palette.orange)
+                                    Text(account.name).font(.body.weight(.semibold)).lineLimit(1)
+                                    Spacer()
+                                    OwnerBadge(owner: account.owner).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Text(total.money(budget.currency)).font(.system(size: 22, weight: .medium, design: .rounded)).monospacedDigit()
+                                Text(inside.isEmpty ? String(localized: "No savings here yet")
+                                                    : inside.map(\.name).joined(separator: ", "))
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                if account.kind.earnsInterest, account.rate > 0 {
+                                    Text("\(account.rate.formatted())% · +\(interest.money(budget.currency)) a month")
+                                        .font(.caption.weight(.medium)).foregroundStyle(Palette.green)
+                                }
+                                if !account.canWithdraw {
+                                    Label("Can't take money out early", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .card()
+                            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct AccountEditor: View {
+    @Environment(BudgetStore.self) private var store
+    @State var account: Account
+
+    var body: some View {
+        let budget = store.budget!
+        let isNew = !budget.accounts.contains { $0.id == account.id }
+        SheetFrame(title: LocalizedStringKey(isNew ? "New account" : "Edit account"),
+                   subtitle: "Just a name to tell your accounts apart. HaluMe never asks for account numbers.",
+                   action: LocalizedStringKey(isNew ? "Add" : "Save"),
+                   canSave: !account.name.trimmingCharacters(in: .whitespaces).isEmpty,
+                   save: { store.save(account) }) {
+            AccountFields(account: $account)
+            if !isNew {
+                Button("Delete Account", role: .destructive) {
+                    store.deleteAccount(account.id)
+                    store.sheet = nil
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Palette.red)
+            }
+        }
+    }
+}
+
+/// Name, type, owner and terms of an account (also used inline when creating one from a saving).
+struct AccountFields: View {
+    @Environment(BudgetStore.self) private var store
+    @Binding var account: Account
+
+    var body: some View {
+        let budget = store.budget!
+        Field("Name") { BoxTextField("e.g. Ozon, savings", text: $account.name) }
+        HStack(alignment: .top, spacing: 12) {
+            Field("Type") {
+                Picker("Type", selection: $account.kind) {
+                    ForEach(AccountKind.allCases, id: \.self) { Label($0.title, systemImage: $0.icon).tag($0) }
+                }
+                .labelsHidden()
+            }
+            if let me = store.me, !store.partners.isEmpty {
+                Field("Whose") {
+                    Picker("Whose", selection: $account.owner) {
+                        Text("Mine").tag(Owner.member(me))
+                        Text("Shared").tag(Owner.shared)
+                        ForEach(store.partners) { Text($0.name).tag(Owner.member($0.id)) }
+                    }
+                    .labelsHidden()
+                }
+            }
+        }
+        if account.kind.earnsInterest {
+            HStack(alignment: .top, spacing: 12) {
+                Field("Rate, % a year") { PercentField(value: $account.rate) }.frame(width: 130, alignment: .leading)
+                Field("Paid on day") { DayPicker(day: $account.interestDay) }.frame(width: 100, alignment: .leading)
+                Field("Interest goes") {
+                    Picker("Interest goes", selection: $account.interestTo) {
+                        Text("Stays here").tag(UUID?.none)
+                        ForEach(budget.accounts.filter { $0.id != account.id }) { Text($0.name).tag(UUID?.some($0.id)) }
+                    }
+                    .labelsHidden()
+                }
+            }
+            Toggle("Money can be taken out any time", isOn: $account.canWithdraw)
+            if account.kind == .deposit {
+                Field("Ends") {
+                    DateField(date: Binding(get: { account.maturity ?? Date() }, set: { account.maturity = $0 }), range: Date() ... .distantFuture)
+                }
+                .frame(width: 240, alignment: .leading)
+            }
+        }
+    }
+}
+
+/// Where a saving lives: one of the accounts, or a new one made right here.
+struct AccountPicker: View {
+    @Environment(BudgetStore.self) private var store
+    @Binding var envelope: Envelope
+    @State private var creating = false
+    @State private var draft = Account(name: "", kind: .savings, owner: .shared)
+
+    var body: some View {
+        let accounts = store.budget?.accounts ?? []
+        Field("Where it lives") {
+            Picker("Where it lives", selection: Binding(get: { creating ? UUID?.some(Self.new) : envelope.account },
+                                                        set: { if $0 == Self.new { creating = true } else { creating = false; envelope.account = $0 } })) {
+                Text("Not set").tag(UUID?.none)
+                ForEach(accounts) { Label($0.name, systemImage: $0.kind.icon).tag(UUID?.some($0.id)) }
+                Divider()
+                Text("New account…").tag(UUID?.some(Self.new))
+            }
+            .labelsHidden()
+        }
+        .frame(maxWidth: 280, alignment: .leading)
+        if creating {
+            VStack(alignment: .leading, spacing: 12) {
+                AccountFields(account: $draft)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { creating = false }.buttonStyle(SecondaryButtonStyle())
+                    Button("Create Account") {
+                        store.save(draft)
+                        envelope.account = draft.id
+                        creating = false
+                        draft = Account(name: "", kind: .savings, owner: envelope.owner)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.primary.opacity(0.04)))
+            .onAppear { draft.owner = envelope.owner }
+        }
+    }
+
+    private static let new = UUID(uuidString: "00000000-0000-0000-0000-00000000000A")!
+}
+
+/// Which card or account pays a bill; hidden until there are accounts.
+struct PayFromField: View {
+    @Environment(BudgetStore.self) private var store
+    @Binding var account: UUID?
+
+    var body: some View {
+        let accounts = (store.budget?.accounts ?? []).filter { $0.kind == .card || $0.kind == .cash || $0.kind == .savings }
+        if !accounts.isEmpty {
+            Field("Paid from") {
+                Picker("Paid from", selection: $account) {
+                    Text("Not set").tag(UUID?.none)
+                    ForEach(accounts) { Text($0.name).tag(UUID?.some($0.id)) }
+                }
+                .labelsHidden()
+            }
+            .frame(width: 220, alignment: .leading)
+        }
+    }
+}
