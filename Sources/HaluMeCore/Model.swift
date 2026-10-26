@@ -26,6 +26,10 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var wishes: [Wish]
     public var reservations: [Reservation]
     public var projects: [Project]
+    /// Things owned that count toward net worth: a flat, a car.
+    public var assets: [Asset]
+    /// Money one partner sent another for shared costs.
+    public var settlements: [Settlement]
     /// Value of one unit of each foreign currency in the budget's currency.
     public var rates: [String: Decimal]
     public var ratesUpdated: Date?
@@ -43,6 +47,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
         self.absences = []; self.accounts = []; self.workCalendar = nil
         self.inflows = []; self.outflows = []; self.transfers = []; self.wishes = []; self.reservations = []; self.projects = []
+        self.assets = []; self.settlements = []
         self.rates = [:]; self.ratesUpdated = nil
         self.paydays = paydays; self.checks = checks
     }
@@ -69,6 +74,8 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         wishes = try c.decodeIfPresent([Wish].self, forKey: .wishes) ?? []
         reservations = try c.decodeIfPresent([Reservation].self, forKey: .reservations) ?? []
         projects = try c.decodeIfPresent([Project].self, forKey: .projects) ?? []
+        assets = try c.decodeIfPresent([Asset].self, forKey: .assets) ?? []
+        settlements = try c.decodeIfPresent([Settlement].self, forKey: .settlements) ?? []
         rates = try c.decodeIfPresent([String: Decimal].self, forKey: .rates) ?? [:]
         ratesUpdated = try c.decodeIfPresent(Date.self, forKey: .ratesUpdated)
         workCalendar = try c.decodeIfPresent(WorkCalendar.self, forKey: .workCalendar)
@@ -425,6 +432,8 @@ public struct Subscription: Codable, Sendable, Hashable, Identifiable {
     /// The account it's paid from.
     public var payFrom: UUID?
     public var split: Split
+    /// The last time the user said they still use it.
+    public var reviewed: Date?
 
     public init(id: UUID = UUID(), owner: Owner, name: String, amount: Decimal, currency: String? = nil, cycle: Cycle = .monthly,
                 anchor: Date, trialEnds: Date? = nil, isActive: Bool = true, category: String = "",
@@ -591,5 +600,38 @@ public struct Transfer: Codable, Sendable, Hashable, Identifiable {
 
     public init(id: UUID = UUID(), from: UUID, to: UUID, date: Date = Date(), amount: Decimal) {
         self.id = id; self.from = from; self.to = to; self.date = date; self.amount = amount
+    }
+}
+
+public enum AssetKind: String, Codable, Sendable, Hashable, CaseIterable {
+    case home, car, valuables, other
+}
+
+/// Something owned that isn't money in a saving: for net worth only, never planned.
+public struct Asset: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var name: String
+    public var kind: AssetKind
+    public var owner: Owner
+    /// What it would sell for today, roughly.
+    public var value: Decimal
+    public var currency: String?
+
+    public init(id: UUID = UUID(), name: String, kind: AssetKind = .other, owner: Owner, value: Decimal, currency: String? = nil) {
+        self.id = id; self.name = name; self.kind = kind; self.owner = owner; self.value = value; self.currency = currency
+    }
+}
+
+/// One partner sent another (or the shared account) money for shared costs.
+public struct Settlement: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var from: UUID
+    /// nil: into a shared account.
+    public var to: UUID?
+    public var amount: Decimal
+    public var date: Date
+
+    public init(id: UUID = UUID(), from: UUID, to: UUID?, amount: Decimal, date: Date = Date()) {
+        self.id = id; self.from = from; self.to = to; self.amount = amount; self.date = date
     }
 }

@@ -65,7 +65,7 @@ extension Planner {
                 .reduce(Decimal(0)) { total, envelope in
                     total + monthDays([envelope.interestDay], from: start, to: add(-1, to: end)!)
                         .filter { payout in payout > day(envelope.openedAt) && envelope.maturity.map { payout <= day($0) } ?? true }
-                        .reduce(0) { sum, payout in sum + down(balance(of: envelope, before: payout) * envelope.rate / 1200) }
+                        .reduce(0) { sum, payout in sum + down(ledger(of: envelope, before: payout).accrued) }
                 }
             let nextRecord = payday(of: member, on: end)
             return PeriodStats(

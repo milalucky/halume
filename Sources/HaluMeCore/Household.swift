@@ -23,6 +23,12 @@ extension Budget {
         part.reservations = []
         part.envelopes.removeAll { hidden.contains($0.id) }
         part.withdrawals.removeAll { hidden.contains($0.envelope) }
+        part.transfers.removeAll { hidden.contains($0.from) || hidden.contains($0.to) }
+        part.inflows = inflows.map { inflow in
+            var i = inflow
+            i.allocations.removeAll { if case .envelope(let id) = $0.target { hidden.contains(id) } else { false } }
+            return i
+        }
         part.paydays = paydays.map { payday in
             var p = payday
             p.allocations.removeAll { if case .envelope(let id) = $0.target { hidden.contains(id) } else { false } }
@@ -38,6 +44,12 @@ extension Budget {
         part.envelopes = envelopes.filter { mine.contains($0.id) }
         part.withdrawals = withdrawals.filter { mine.contains($0.envelope) }
         part.reservations = reservations.filter { $0.by == member }
+        part.transfers = transfers.filter { mine.contains($0.from) || mine.contains($0.to) }
+        part.inflows = inflows.compactMap { inflow in
+            var i = inflow
+            i.allocations = inflow.allocations.filter { if case .envelope(let id) = $0.target { mine.contains(id) } else { false } }
+            return i.allocations.isEmpty ? nil : i
+        }
         part.paydays = paydays.compactMap { payday in
             var p = payday
             p.allocations = payday.allocations.filter { if case .envelope(let id) = $0.target { mine.contains(id) } else { false } }
@@ -52,6 +64,13 @@ extension Budget {
         budget.envelopes += part.envelopes.filter { e in !shared.envelopes.contains { $0.id == e.id } }
         budget.withdrawals += part.withdrawals.filter { w in !shared.withdrawals.contains { $0.id == w.id } }
         budget.reservations += part.reservations.filter { !shared.reservations.contains($0) }
+        budget.transfers += part.transfers.filter { t in !shared.transfers.contains { $0.id == t.id } }
+        for inflow in part.inflows {
+            if let i = budget.inflows.firstIndex(where: { $0.id == inflow.id }) {
+                let known = Set(budget.inflows[i].allocations.map(\.target))
+                budget.inflows[i].allocations += inflow.allocations.filter { !known.contains($0.target) }
+            }
+        }
         for payday in part.paydays {
             if let i = budget.paydays.firstIndex(where: { $0.id == payday.id }) {
                 let known = Set(budget.paydays[i].allocations.map(\.target))

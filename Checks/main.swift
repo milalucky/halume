@@ -240,7 +240,10 @@ var giftPay = fp.confirm(fp.plan(for: me.id, on: d(2026, 10, 23)), actual: 80_00
 giftPay.allocations = giftPay.allocations.map { a in var a = a; a.isDone = true; return a }
 family.paydays = [giftPay]
 family.withdrawals = [Withdrawal(envelope: gift.id, amount: 1_000)]
+family.inflows = [Inflow(member: me.id, amount: 5_000, allocations: [Allocation(target: .envelope(gift.id), amount: 2_000, isDone: true)])]
+family.transfers = [Transfer(from: cushion.id, to: gift.id, amount: 500)]
 let shared = family.sharedPart(at: d(2026, 11, 1))
+check(shared.transfers.isEmpty && shared.inflows[0].allocations.isEmpty, "money moved into a hidden envelope not shared")
 check(!shared.envelopes.contains { $0.id == gift.id } && shared.withdrawals.isEmpty, "hidden envelope not shared")
 check(!shared.paydays[0].allocations.contains { $0.target == .envelope(gift.id) }, "transfers to it not shared")
 check(shared.paydays[0].allocations.count == giftPay.allocations.count - 1, "everything else shared")
@@ -249,7 +252,8 @@ check(mine.envelopes.map(\.id) == [gift.id] && mine.paydays[0].allocations.count
 check(family.privatePart(of: partner.id, at: d(2026, 11, 1)).envelopes.isEmpty, "the partner has nothing hidden")
 let back = Budget.merged(shared: shared, private: mine)
 check(Set(back.envelopes.map(\.id)) == Set(family.envelopes.map(\.id)) && Set(back.paydays[0].allocations) == Set(giftPay.allocations)
-      && back.withdrawals == family.withdrawals, "merging gives the whole budget back")
+      && back.withdrawals == family.withdrawals && back.transfers == family.transfers && back.inflows == family.inflows,
+      "merging gives the whole budget back")
 check(family.sharedPart(at: d(2027, 3, 8)).envelopes.contains { $0.id == gift.id }, "revealed on the date")
 let wantedPhone = Wish(owner: partner.id, name: "iPhone", price: 150_000)
 family.wishes = [wantedPhone]
@@ -498,6 +502,51 @@ bigPay.keep = 90_000
 ahead.paydays = [bigPay]
 check(Planner(ahead, calendar: calendar).plan(for: me.id, on: d(2026, 10, 23)).lines.first { $0.target == .carry }?.amount == 40_000,
       "never more than the extra")
+
+// Runway, net worth: 120 000 saved, a 1 000 000 car, a 100 000 loan.
+var solo = Budget(name: "Solo", currency: "RUB", members: [me], incomes: [salary],
+                  bills: [Bill(owner: .member(me.id), name: "Rent", amount: 30_000, day: 5)],
+                  envelopes: [Envelope(owner: .member(me.id), name: "Cushion", goal: .open, opening: 120_000, openedAt: d(2026, 1, 1))])
+solo.debts = [Debt(owner: .member(me.id), name: "Loan", kind: .loan, balance: 100_000, asOf: d(2026, 10, 1), payment: 10_000, day: 20)]
+solo.assets = [Asset(name: "Car", kind: .car, owner: .member(me.id), value: 1_000_000)]
+let soloP = Planner(solo, calendar: calendar)
+check(soloP.monthlyCosts(of: me.id, on: d(2026, 10, 27)) == 40_000, "a month's bills and debt payments")
+let run = soloP.runway(of: me.id, on: d(2026, 10, 27))
+check(run.savings == 120_000 && run.monthlyNeed > 40_000 && run.months < 3 && run.days > 0, "runway (\(run.months) months, \(run.days) days)")
+check(soloP.worth(of: me.id, on: d(2026, 10, 27)).total == 1_020_000, "net worth: savings + car − loan")
+check(soloP.worthHistory(of: nil, months: 3, to: d(2026, 10, 27)).count == 4, "three month starts and today")
+
+// Who owes whom: rent 90 000 shared equally, paid from my card → Alina sends me 45 000; 20 000 already sent.
+var couple = budget
+let myCard = Account(name: "My card", kind: .card, owner: .member(me.id))
+couple.accounts = [myCard]
+couple.bills = [rent]
+couple.bills[0].payFrom = myCard.id
+couple.settlements = [Settlement(from: partner.id, to: me.id, amount: 20_000, date: d(2026, 11, 3))]
+let owedNov = Planner(couple, calendar: calendar).owed(inMonthOf: d(2026, 11, 15))
+check(owedNov.count == 1 && owedNov[0].from == partner.id && owedNov[0].to == me.id && owedNov[0].amount == 45_000 && owedNov[0].left == 25_000,
+      "partner owes half the rent (\(owedNov))")
+couple.accounts[0].owner = .shared
+let toShared = Planner(couple, calendar: calendar).owed(inMonthOf: d(2026, 11, 15))
+check(toShared.count == 2 && toShared.allSatisfy { $0.to == nil && $0.amount == 45_000 }, "both pay into a shared account")
+
+// Subscription review after three months.
+var oldSub = Subscription(owner: .member(me.id), name: "Old", amount: 300, anchor: d(2026, 5, 1))
+check(planner.needsReview(oldSub, on: d(2026, 10, 27)), "not confirmed for 3 months")
+oldSub.reviewed = d(2026, 9, 1)
+check(!planner.needsReview(oldSub, on: d(2026, 10, 27)), "confirmed recently")
+
+// Recap of the 9 Oct period, seen after the 23 Oct pay.
+var recapped = budget
+recapped.paydays = [Payday(member: me.id, date: d(2026, 10, 9), actual: 80_000,
+                           allocations: [Allocation(target: .envelope(cushion.id), amount: 8_000, isDone: true),
+                                         Allocation(target: .bill(phone.id), amount: 1_000, isDone: true)])]
+let recap = Planner(recapped, calendar: calendar).recap(of: me.id, before: d(2026, 10, 25))
+check(recap?.saved == 8_000 && recap?.paid == 1_000 && recap?.goals.first?.name == "Cushion", "recap (\(String(describing: recap)))")
+
+// What if pay drops 20%: less free money.
+let whatIf = soloP.scenario(member: me.id, payChange: -20, newMonthlyCost: 5_000)
+check(whatIf.plan(for: me.id, on: d(2026, 10, 23)).free < soloP.plan(for: me.id, on: d(2026, 10, 23)).free, "what if: less to spend")
 
 print(failures == 0 ? "All checks passed" : "\(failures) checks failed")
 exit(failures == 0 ? 0 : 1)
