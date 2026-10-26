@@ -27,6 +27,7 @@ struct MainView: View {
                 case .subscriptions: SubscriptionsPage()
                 case .projects: ProjectsPage()
                 case .wishlist: WishlistPage()
+                case .history: HistoryPage()
                 case .stats: StatsPage()
                 }
             }
@@ -50,9 +51,9 @@ struct MainView: View {
                 case .task(let project, let stage, let task): TaskEditor(projectID: project, stageID: stage, task: task)
                 case .rates(let id): RatesSheet(projectID: id)
                 case .account(let account): AccountEditor(account: account)
-                case .inflow: InflowSheet()
-                case .outflow: OutflowSheet()
-                case .transfer: TransferSheet()
+                case .inflow(let inflow): InflowSheet(inflow: inflow)
+                case .outflow(let spending): OutflowSheet(spending: spending)
+                case .transfer(let transfer): TransferSheet(transfer: transfer)
                 case .saveWish(let id): SaveForWishSheet(wishID: id)
                 }
             }
@@ -76,6 +77,7 @@ extension Section {
         case .subscriptions: "Subscriptions"
         case .projects: "Projects"
         case .wishlist: "Wishlist"
+        case .history: "History"
         case .stats: "Stats"
         }
     }
@@ -88,6 +90,7 @@ extension Section {
         case .subscriptions: "repeat"
         case .projects: "flag.checkered"
         case .wishlist: "gift"
+        case .history: "clock.arrow.circlepath"
         case .stats: "chart.bar.xaxis"
         }
     }
@@ -156,13 +159,16 @@ struct TodayPage: View {
                 let today = Date()
                 // The day's actions, named, not just icons.
                 FlowLayout(spacing: 8) {
-                    Button { store.sheet = .inflow } label: { Label("Money came in", systemImage: "plus.circle") }
-                    Button { store.sheet = .outflow } label: { Label("Unplanned expense", systemImage: "minus.circle") }
+                    Button { store.sheet = store.newInflow } label: { Label("Money came in", systemImage: "plus.circle") }
+                    Button { store.sheet = .outflow(Spending()) } label: { Label("Unplanned expense", systemImage: "minus.circle") }
                     Button { store.sheet = .timeOff } label: { Label("Vacation, sick leave", systemImage: "calendar.badge.clock") }
                     Button { store.sheet = .balance } label: { Label("Balance on the card", systemImage: "creditcard") }
                     Button { store.sheet = .plan } label: { Label("Edit plan", systemImage: "slider.horizontal.3") }
                 }
                 .buttonStyle(SecondaryButtonStyle())
+                ForEach(budget.incomes.filter { $0.member == me && $0.irregular }) { income in
+                    EarningsCard(income: income, planner: planner, today: today)
+                }
                 if let allowance = planner.allowance(for: me, on: today), let start = planner.current(on: today, of: me) {
                     let record = planner.payday(of: me, on: start)
                     Hero(allowance: allowance, start: start, currency: budget.currency,
@@ -212,7 +218,7 @@ struct TodayPage: View {
     private func outside(budget: Budget, me: UUID, start: Date) -> [(title: String, amount: Decimal)] {
         let next = store.planner?.next(after: start, of: me) ?? Calendar.current.date(byAdding: .month, value: 1, to: start)!
         let inPeriod = { (d: Date) in d >= start && d < next }
-        let came = budget.inflows.filter { $0.member == me && inPeriod($0.date) }.map { inflow in
+        let came = budget.inflows.filter { $0.member == me && $0.income == nil && inPeriod($0.date) }.map { inflow in
             (inflow.note, budget.convert(inflow.amount, from: inflow.currency) - inflow.allocations.reduce(0) { $0 + $1.amount })
         }
         let went = budget.outflows.filter { $0.member == me && inPeriod($0.date) }.map { ($0.note, -budget.convert($0.amount, from: $0.currency)) }
@@ -223,6 +229,42 @@ struct TodayPage: View {
         guard let check = budget.checks.filter({ $0.member == me && $0.date >= start }).max(by: { $0.date < $1.date })
         else { return nil }
         return String(localized: "From your balance of \(check.amount.money(budget.currency)), \(check.date.formatted(.relative(presentation: .named)))")
+    }
+}
+
+/// Irregular income: what this month brought so far, which becomes next month's budget on the 1st.
+private struct EarningsCard: View {
+    @Environment(BudgetStore.self) private var store
+    let income: Income
+    let planner: Planner
+    let today: Date
+
+    var body: some View {
+        let currency = planner.budget.currency
+        let earned = planner.earnings(of: income, inMonthOf: today)
+        let first = Calendar.current.dateInterval(of: .month, for: Calendar.current.date(byAdding: .month, value: 1, to: today)!)!.start
+        let estimate = planner.budget.convert(income.expected, from: income.currency)
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Earned in \(today.formatted(.dateTime.month(.wide)))").font(.subheadline).foregroundStyle(.secondary)
+                Text(earned.money(currency)).font(.system(size: 26, weight: .medium, design: .rounded)).monospacedDigit()
+                Text("Becomes your budget on \(first.formatted(.dateTime.day().month(.wide))). Estimate: \(estimate.money(currency)).")
+                    .font(.caption).foregroundStyle(.secondary)
+                if estimate > 0 {
+                    Bar(value: min(1, (earned / estimate).double))
+                }
+            }
+            Spacer()
+            Button {
+                var inflow = Inflow(member: income.member, amount: 0, currency: income.currency)
+                inflow.income = income.id
+                store.sheet = .inflow(inflow)
+            } label: {
+                Label("Record earnings", systemImage: "plus")
+            }
+            .buttonStyle(PrimaryButtonStyle())
+        }
+        .card()
     }
 }
 

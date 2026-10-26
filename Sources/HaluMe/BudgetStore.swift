@@ -14,7 +14,9 @@ enum Sheet: Identifiable, Hashable {
     case task(project: UUID, stage: UUID, task: ProjectTask)
     case rates(UUID)
     case account(Account)
-    case inflow, outflow, transfer
+    case inflow(Inflow)
+    case outflow(Spending)
+    case transfer(Transfer)
     case saveWish(UUID)
 
     var id: String {
@@ -32,9 +34,9 @@ enum Sheet: Identifiable, Hashable {
         case .task(_, _, let t): "task-\(t.id)"
         case .rates(let id): "rates-\(id)"
         case .account(let a): "account-\(a.id)"
-        case .inflow: "inflow"
-        case .outflow: "outflow"
-        case .transfer: "transfer"
+        case .inflow(let i): "inflow-\(i.id)"
+        case .outflow(let o): "outflow-\(o.id)"
+        case .transfer(let t): "transfer-\(t.id)"
         case .saveWish(let id): "save-wish-\(id)"
         }
     }
@@ -58,7 +60,7 @@ enum Sheet: Identifiable, Hashable {
 }
 
 enum Section: String, CaseIterable, Identifiable {
-    case today, savings, debts, subscriptions, projects, wishlist, stats
+    case today, savings, debts, subscriptions, projects, wishlist, history, stats
     var id: Self { self }
 }
 
@@ -178,16 +180,15 @@ final class BudgetStore {
     }
 
     /// The real amount of the payday on `date`; the plan is redone for it, done marks kept.
-    func setPay(_ amount: Decimal, leftover: Decimal?, payday date: Date) {
+    func setPay(_ amount: Decimal, leftover: Decimal?, keep: Decimal? = nil, payday date: Date) {
         guard var budget, let me else { return }
         var record = Planner(budget).payday(of: me, on: date) ?? Payday(member: me, date: date, actual: nil, allocations: [])
         record.actual = amount
         record.leftover = leftover
+        record.keep = keep.flatMap { $0 > 0 ? $0 : nil }
         budget.upsert(record)
         let planner = Planner(budget)
-        var confirmed = planner.confirm(planner.plan(for: me, on: date), actual: amount)
-        confirmed.leftover = leftover
-        budget.upsert(confirmed)
+        budget.upsert(planner.confirm(planner.plan(for: me, on: date), actual: amount))
         self.budget = budget
     }
 

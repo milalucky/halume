@@ -7,7 +7,7 @@ struct SavingsPage: View {
     var body: some View {
         Page(title: "Savings") {
             if let first = store.budget?.envelopes.first {
-                IconButton(icon: "arrow.left.arrow.right", label: "Move between savings") { store.sheet = .transfer }
+                IconButton(icon: "arrow.left.arrow.right", label: "Move between savings") { store.sheet = .transfer(TransferSheet.new()) }
                 IconButton(icon: "arrow.uturn.backward", label: "Take money out") { store.sheet = .withdraw(first.id) }
             }
             IconButton(icon: "slider.horizontal.3", label: "Edit savings") { store.sheet = .plan }

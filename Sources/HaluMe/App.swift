@@ -40,9 +40,9 @@ struct HaluMeApp: App {
                     .keyboardShortcut("b")
                 Button("Edit Plan…") { store.sheet = .plan }
                     .keyboardShortcut("e")
-                Button("Money Came In…") { store.sheet = .inflow }
+                Button("Money Came In…") { store.sheet = store.newInflow }
                     .keyboardShortcut("i", modifiers: [.command, .shift])
-                Button("Unplanned Expense…") { store.sheet = .outflow }
+                Button("Unplanned Expense…") { store.sheet = .outflow(Spending()) }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
                 Button("Vacation and Sick Leave…") { store.sheet = .timeOff }
                     .keyboardShortcut("t", modifiers: [.command, .shift])

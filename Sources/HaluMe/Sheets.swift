@@ -8,6 +8,8 @@ struct SheetFrame<Content: View>: View {
     let action: LocalizedStringKey
     var canSave = true
     let save: () -> Void
+    /// Shown as a red button on the left when editing something that exists.
+    var delete: (() -> Void)?
     @ViewBuilder let content: Content
     @Environment(\.dismiss) private var dismiss
 
@@ -19,6 +21,11 @@ struct SheetFrame<Content: View>: View {
             }
             content
             HStack {
+                if let delete {
+                    Button("Delete", role: .destructive) { delete(); dismiss() }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(Palette.red)
+                }
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .buttonStyle(SecondaryButtonStyle())
@@ -38,15 +45,30 @@ struct PaySheet: View {
     @Environment(BudgetStore.self) private var store
     @State private var amount: Decimal = 0
     @State private var leftover: Decimal?
+    @State private var keep: Decimal?
 
     var body: some View {
         let planner = store.planner, me = store.me
         let start = me.flatMap { planner?.current(on: Date(), of: $0) } ?? Date()
         SheetFrame(title: "Pay arrived",
                    subtitle: "The real amount of your \(start.formatted(.dateTime.day().month(.wide))) pay. The plan adjusts to it.",
-                   action: "Save", canSave: amount > 0, save: { store.setPay(amount, leftover: leftover, payday: start) }) {
+                   action: "Save", canSave: amount > 0, save: { store.setPay(amount, leftover: leftover, keep: keep, payday: start) }) {
             let currency = store.budget?.currency ?? "USD"
+            let usual = me.flatMap { planner?.usual(of: $0, on: start) } ?? 0
             Field("Amount") { AmountField(amount: $amount, currency: currency) }
+            if usual > 0, amount > usual {
+                let extra = amount - usual
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Keep the extra \(extra.money(currency)) for the next payday", isOn: Binding(get: { keep != nil }, set: { keep = $0 ? extra : nil }))
+                    Text("This pay is bigger than usual. Kept money comes with your next pay, so you get ahead instead of spending it now.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    if keep != nil {
+                        Field("How much to keep") { AmountField(optional: $keep, currency: currency, placeholder: "0") }.frame(width: 200, alignment: .leading)
+                    }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Palette.green.opacity(0.08)))
+            }
             Field("Left from your last pay", hint: "Optional. What was still on your card when this pay came. It shows in your stats whether you stayed within the plan.") {
                 AmountField(optional: $leftover, currency: currency, placeholder: "Skip")
             }
@@ -55,6 +77,7 @@ struct PaySheet: View {
             guard let planner, let me else { return }
             amount = planner.payday(of: me, on: start)?.actual ?? planner.expected(of: me, on: start)
             leftover = planner.payday(of: me, on: start)?.leftover
+            keep = planner.payday(of: me, on: start)?.keep
         }
     }
 }

@@ -26,7 +26,7 @@ struct OnboardingView: View {
                         case 0: WelcomeStep(draft: $draft)
                         case 1:
                             PayEditor(pay: $draft.pay, currency: draft.currency, calendar: draft.workCalendar)
-                            if draft.pay.frequency != .daily {
+                            if draft.pay.frequency != .daily && draft.pay.frequency != .irregular {
                                 Field("Holidays and moved days off") { WorkCalendarPicker(calendar: $draft.workCalendar) }
                             }
                         case 2: BillsEditor(bills: $draft.bills, currency: draft.currency, member: draft.member)
@@ -141,7 +141,7 @@ extension [Envelope] {
 }
 
 enum Frequency: String, CaseIterable, Identifiable {
-    case twiceMonthly = "Twice a month", monthly = "Monthly", biweekly = "Every 2 weeks", weekly = "Weekly", daily = "Every day"
+    case twiceMonthly = "Twice a month", monthly = "Monthly", biweekly = "Every 2 weeks", weekly = "Weekly", daily = "Every day", irregular = "Irregular"
     var id: Self { self }
 }
 
@@ -193,6 +193,10 @@ struct PaySettings {
             frequency = .daily
             weekdaysOnly = weekdays
         }
+        if income.irregular {
+            frequency = .irregular
+            amount = income.expected
+        }
         if let tax = income.tax {
             beforeTax = true
             region = tax.region; married = tax.married; regionalRate = tax.regionalRate; flatRate = tax.flatRate
@@ -210,12 +214,12 @@ struct PaySettings {
     var isMonthly: Bool { frequency == .twiceMonthly || frequency == .monthly }
 
     /// Canada and the US state salaries per year; elsewhere per month (or per payday / day).
-    var yearly: Bool { frequency != .daily && (country == "CA" || country == "US") }
+    var yearly: Bool { frequency != .daily && frequency != .irregular && (country == "CA" || country == "US") }
 
     /// Paydays a year, to turn a yearly salary into one payday's amount.
     var perYear: Decimal {
         switch frequency {
-        case .twiceMonthly, .monthly: 12
+        case .twiceMonthly, .monthly, .irregular: 12
         case .biweekly: 26
         case .weekly: 52
         case .daily: 1
@@ -238,8 +242,10 @@ struct PaySettings {
         case .biweekly: .everyWeeks(2, from: lastPayday)
         case .weekly: .everyWeeks(1, from: lastPayday)
         case .daily: .daily(weekdaysOnly: weekdaysOnly)
+        case .irregular: .monthly(days: [1])
         }
-        income.shift = shift
+        income.shift = frequency == .irregular ? .none : shift
+        income.irregular = frequency == .irregular
         income.currency = currency
         income.expected = yearly ? amount / perYear : amount
         income.isMonthly = isMonthly
@@ -320,7 +326,7 @@ struct PayEditor: View {
                     DateField(date: $pay.lastPayday, range: .distantPast ... Date())
                 }
                 .frame(width: 210, alignment: .leading)
-            case .daily:
+            case .daily, .irregular:
                 EmptyView()
             }
             Field(amountLabel) { AmountField(amount: $pay.amount, code: $pay.currency, budgetCurrency: currency) }
@@ -338,7 +344,11 @@ struct PayEditor: View {
                 Field("Advance") { AmountField(amount: $pay.advance, currency: currency) }.frame(width: 200, alignment: .leading)
             }
         }
-        if pay.frequency == .daily {
+        if pay.frequency == .irregular {
+            Label("Live on last month's money: what you earn this month becomes next month's budget, paid out to you on the 1st. Record each payment with “Money came in”. Until there's a month of earnings, the plan uses this estimate.",
+                  systemImage: "tray.and.arrow.down")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        } else if pay.frequency == .daily {
             Toggle("Weekdays only", isOn: $pay.weekdaysOnly)
             Text("HaluMe plans daily pay by the week: each Monday you see the week's bills and savings.")
                 .font(.callout).foregroundStyle(.secondary)
@@ -360,6 +370,7 @@ struct PayEditor: View {
         case .twiceMonthly, .monthly: pay.yearly ? "Salary a year" : "Salary a month"
         case .biweekly, .weekly: pay.yearly ? "Salary a year" : "Each payday"
         case .daily: "Each day"
+        case .irregular: "About a month"
         }
     }
 
