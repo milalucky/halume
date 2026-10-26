@@ -20,6 +20,8 @@ struct SubscriptionsPage: View {
                                text: "Streaming, music, apps, cloud, bank packages: small charges add up. Add them once and see what they cost in a year.")
                 } else {
                     Totals(planner: planner, active: active)
+                    let stale = active.filter { planner.needsReview($0, on: today) }
+                    if !stale.isEmpty { ReviewCard(subscriptions: stale, currency: budget.currency) }
                     if !active.isEmpty {
                         VStack(spacing: 0) {
                             ForEach(Array(active.enumerated()), id: \.element.id) { i, sub in
@@ -50,6 +52,38 @@ struct SubscriptionsPage: View {
 
     private func newSubscription() -> Subscription {
         Subscription(owner: .member(store.me ?? UUID()), name: "", amount: 0, anchor: Date())
+    }
+}
+
+/// Every three months: "still using it?" for each subscription, with what it costs a year.
+private struct ReviewCard: View {
+    @Environment(BudgetStore.self) private var store
+    let subscriptions: [Subscription]
+    let currency: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Still using these?", systemImage: "questionmark.circle").font(.headline)
+            Text("Checked every three months. Cancel what you don't use and it shows as savings.").font(.callout).foregroundStyle(.secondary)
+            ForEach(subscriptions) { sub in
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(sub.name)
+                        Text("\((Planner.monthlyCost(of: sub) * 12).rounded().money(sub.currency ?? currency)) a year").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Cancel It") { update(sub) { $0.isActive = false } }.buttonStyle(.borderless).foregroundStyle(Palette.red)
+                    Button("Still Using") { update(sub) { $0.reviewed = Date() } }.buttonStyle(SecondaryButtonStyle())
+                }
+            }
+        }
+        .card()
+    }
+
+    private func update(_ sub: Subscription, _ change: (inout Subscription) -> Void) {
+        var sub = sub
+        change(&sub)
+        store.save(sub)
     }
 }
 

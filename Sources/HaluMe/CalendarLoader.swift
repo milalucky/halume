@@ -34,6 +34,7 @@ enum CalendarLoader {
             result.daysOff.formUnion(part.daysOff)
             result.workingWeekends.formUnion(part.workingWeekends)
             result.vacationHolidays.formUnion(part.vacationHolidays)
+            if let names = part.names { result.names = (result.names ?? [:]).merging(names) { a, _ in a } }
             result.years.append(year)
         }
         result.years.sort()
@@ -74,11 +75,13 @@ enum CalendarLoader {
     }
 
     private static func publicHolidays(_ country: String, _ year: Int) async throws -> WorkCalendar {
-        struct Holiday: Decodable { let date: String; let global: Bool; let types: [String] }
+        struct Holiday: Decodable { let date: String; let name: String; let global: Bool; let types: [String] }
         let url = URL(string: "https://date.nager.at/api/v3/PublicHolidays/\(year)/\(country)")!
         let (data, _) = try await URLSession.shared.data(from: url)
         let holidays = try JSONDecoder().decode([Holiday].self, from: data).filter { $0.global && $0.types.contains("Public") }
-        return WorkCalendar(country: country, daysOff: Set(holidays.map(\.date)),
-                            vacationHolidays: Set(holidays.map { String($0.date.dropFirst(5)) }))
+        var result = WorkCalendar(country: country, daysOff: Set(holidays.map(\.date)),
+                                  vacationHolidays: Set(holidays.map { String($0.date.dropFirst(5)) }))
+        result.names = Dictionary(holidays.map { ($0.date, $0.name) }, uniquingKeysWith: { a, _ in a })
+        return result
     }
 }

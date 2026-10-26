@@ -8,7 +8,7 @@ enum Sheet: Identifiable, Hashable {
     case payoff(UUID)
     case subscription(Subscription)
     case withdraw(UUID)
-    case timeOff
+    case timeOff(TimeOffDraft?)
     case wish(Wish)
     case newProject
     case task(project: UUID, stage: UUID, task: ProjectTask)
@@ -18,6 +18,9 @@ enum Sheet: Identifiable, Hashable {
     case outflow(Spending)
     case transfer(Transfer)
     case saveWish(UUID)
+    case asset(Asset)
+    case whatIf
+    case recap
 
     var id: String {
         switch self {
@@ -38,6 +41,9 @@ enum Sheet: Identifiable, Hashable {
         case .outflow(let o): "outflow-\(o.id)"
         case .transfer(let t): "transfer-\(t.id)"
         case .saveWish(let id): "save-wish-\(id)"
+        case .asset(let a): "asset-\(a.id)"
+        case .whatIf: "what-if"
+        case .recap: "recap"
         }
     }
 
@@ -51,16 +57,20 @@ enum Sheet: Identifiable, Hashable {
         case "payoff": budget?.debts.first.map { .payoff($0.id) }
         case "subscription": budget?.subscriptions.first.map { .subscription($0) }
         case "withdraw": budget?.envelopes.first.map { .withdraw($0.id) }
-        case "timeoff": .timeOff
+        case "timeoff": .timeOff(nil)
         case "wish": budget?.wishes.first.map { .wish($0) }
         case "project": .newProject
+        case "whatif": .whatIf
+        case "recap": .recap
+        case "inflow": budget?.inflows.first.map { .inflow($0) }
+        case "asset": .asset(Asset(name: "", owner: .shared, value: 0))
         default: nil
         }
     }
 }
 
 enum Section: String, CaseIterable, Identifiable {
-    case today, savings, debts, subscriptions, projects, wishlist, history, stats
+    case today, calendar, savings, worth, debts, subscriptions, projects, wishlist, history, stats
     var id: Self { self }
 }
 
@@ -407,6 +417,10 @@ enum Demo {
             Wish(owner: me.id, name: String(localized: "Running shoes"), price: 12_900),
         ]
         budget.workCalendar = .russia
+        budget.assets = [Asset(name: String(localized: "Car"), kind: .car, owner: .member(me.id), value: 1_100_000)]
+        budget.inflows = [Inflow(member: me.id, date: day(-2), amount: 15_000, note: String(localized: "Gift"))]
+        budget.outflows = [Outflow(member: me.id, date: day(-1), amount: 4_200, note: String(localized: "Treatment"))]
+        budget.absences = [Absence(member: me.id, kind: .vacation, from: day(30), to: day(43))]
         addHistory(to: &budget, member: me.id, before: today)
         let planner = Planner(budget)
         if let start = planner.current(on: today, of: me.id) {

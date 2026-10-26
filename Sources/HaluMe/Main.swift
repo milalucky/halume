@@ -22,7 +22,9 @@ struct MainView: View {
             Group {
                 switch store.section {
                 case .today: TodayPage()
+                case .calendar: CalendarPage()
                 case .savings: SavingsPage()
+                case .worth: WorthPage()
                 case .debts: DebtsPage()
                 case .subscriptions: SubscriptionsPage()
                 case .projects: ProjectsPage()
@@ -45,7 +47,7 @@ struct MainView: View {
                 case .payoff(let id): PayoffSheet(debtID: id)
                 case .subscription(let sub): SubscriptionEditor(subscription: sub)
                 case .withdraw(let id): WithdrawSheet(envelopeID: id)
-                case .timeOff: TimeOffSheet()
+                case .timeOff(let draft): TimeOffSheet(draft: draft)
                 case .wish(let wish): WishEditor(wish: wish)
                 case .newProject: NewProjectSheet()
                 case .task(let project, let stage, let task): TaskEditor(projectID: project, stageID: stage, task: task)
@@ -55,6 +57,9 @@ struct MainView: View {
                 case .outflow(let spending): OutflowSheet(spending: spending)
                 case .transfer(let transfer): TransferSheet(transfer: transfer)
                 case .saveWish(let id): SaveForWishSheet(wishID: id)
+                case .asset(let asset): AssetEditor(asset: asset)
+                case .whatIf: WhatIfSheet()
+                case .recap: RecapSheet()
                 }
             }
             .environment(store)
@@ -72,7 +77,9 @@ extension Section {
     var title: LocalizedStringKey {
         switch self {
         case .today: "Today"
+        case .calendar: "Calendar"
         case .savings: "Savings"
+        case .worth: "Net worth"
         case .debts: "Debts"
         case .subscriptions: "Subscriptions"
         case .projects: "Projects"
@@ -85,7 +92,9 @@ extension Section {
     var icon: String {
         switch self {
         case .today: "sun.max"
+        case .calendar: "calendar"
         case .savings: "tray.full"
+        case .worth: "chart.line.uptrend.xyaxis"
         case .debts: "creditcard"
         case .subscriptions: "repeat"
         case .projects: "flag.checkered"
@@ -150,6 +159,8 @@ struct Page<Actions: View, Content: View>: View {
 
 struct TodayPage: View {
     @Environment(BudgetStore.self) private var store
+    /// The pay period whose recap was closed.
+    @AppStorage("recapSeen") private var recapSeen: Double = 0
 
     var body: some View {
         Page(title: LocalizedStringKey(greeting)) {
@@ -161,9 +172,10 @@ struct TodayPage: View {
                 FlowLayout(spacing: 8) {
                     Button { store.sheet = store.newInflow } label: { Label("Money came in", systemImage: "plus.circle") }
                     Button { store.sheet = .outflow(Spending()) } label: { Label("Unplanned expense", systemImage: "minus.circle") }
-                    Button { store.sheet = .timeOff } label: { Label("Vacation, sick leave", systemImage: "calendar.badge.clock") }
+                    Button { store.sheet = .timeOff(nil) } label: { Label("Vacation, sick leave", systemImage: "calendar.badge.clock") }
                     Button { store.sheet = .balance } label: { Label("Balance on the card", systemImage: "creditcard") }
                     Button { store.sheet = .plan } label: { Label("Edit plan", systemImage: "slider.horizontal.3") }
+                    Button { store.sheet = .whatIf } label: { Label("What if…", systemImage: "wand.and.stars") }
                 }
                 .buttonStyle(SecondaryButtonStyle())
                 ForEach(budget.incomes.filter { $0.member == me && $0.irregular }) { income in
@@ -173,6 +185,19 @@ struct TodayPage: View {
                     let record = planner.payday(of: me, on: start)
                     Hero(allowance: allowance, start: start, currency: budget.currency,
                          note: balanceNote(budget: budget, me: me, start: start), weekly: budget.plansByWeek)
+                    let runway = planner.runway(of: me, on: today)
+                    if runway.monthlyNeed > 0 {
+                        Button { store.section = .worth } label: {
+                            Label(String(localized: "Safety cushion: \(runway.days) days without pay"), systemImage: "shield.lefthalf.filled")
+                                .font(.callout)
+                                .foregroundStyle(runway.months >= 3 ? Palette.green : .secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("How long your savings would last without any pay. Click for net worth.")
+                    }
+                    if let recap = planner.recap(of: me, before: today), recapSeen != start.timeIntervalSince1970 {
+                        RecapCard(recap: recap, currency: budget.currency) { recapSeen = start.timeIntervalSince1970 }
+                    }
                     if record?.actual == nil {
                         PayBanner(expected: planner.expected(of: me, on: start), date: start, currency: budget.currency, weekly: budget.plansByWeek) {
                             store.sheet = .pay
@@ -193,6 +218,7 @@ struct TodayPage: View {
                              outside: outside(budget: budget, me: me, start: start)) {
                         store.toggle($0, payday: start)
                     }
+                    if budget.members.count > 1 { OwedCard(planner: planner, today: today) }
                     ComingUp(planner: planner, today: today)
                     TaxAhead(planner: planner, me: me, today: today)
                 } else {

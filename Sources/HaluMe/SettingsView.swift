@@ -4,6 +4,7 @@ import SwiftUI
 /// HaluMe → Settings… (⌘,).
 struct SettingsView: View {
     @Environment(BudgetStore.self) private var store
+    @AppStorage("menuBar") private var menuBar = true
     @AppStorage(Reminders.paydayKey) private var payday = false
     @AppStorage(Reminders.billsKey) private var bills = false
     @AppStorage(Reminders.subscriptionsKey) private var subscriptions = false
@@ -43,6 +44,7 @@ struct SettingsView: View {
                     ForEach(NumberStyle.allCases) { Text($0.sample).tag($0.rawValue) }
                 }
                 .onChange(of: numbers) { store.look += 1 }
+                Toggle("Amount a day in the menu bar", isOn: $menuBar)
             } header: {
                 Text("Look")
             }

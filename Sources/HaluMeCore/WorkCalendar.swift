@@ -12,6 +12,8 @@ public struct WorkCalendar: Codable, Sendable, Hashable {
     public var vacationHolidays: Set<String>
     /// Years the lists cover.
     public var years: [Int]
+    /// Holiday names by "yyyy-MM-dd", when the source has them (Russia's are built in).
+    public var names: [String: String]?
 
     public init(country: String, daysOff: Set<String> = [], workingWeekends: Set<String> = [],
                 vacationHolidays: Set<String> = [], years: [Int] = []) {
@@ -32,6 +34,25 @@ public struct WorkCalendar: Codable, Sendable, Hashable {
     public func isVacationHoliday(_ date: Date, calendar: Calendar) -> Bool {
         vacationHolidays.contains(String(key(date, calendar).dropFirst(5)))
     }
+
+    /// A holiday's name (an English key the app translates), a moved day off, or nil for an ordinary day.
+    public func holiday(on date: Date, calendar: Calendar) -> String? {
+        let key = key(date, calendar), monthDay = String(key.dropFirst(5))
+        if let name = names?[key] { return name }
+        if country == "RU", let name = Self.russianHolidays[monthDay] { return name }
+        if vacationHolidays.contains(monthDay) && !calendar.isDateInWeekend(date) || daysOff.contains(key) {
+            return vacationHolidays.contains(monthDay) ? "Public holiday" : "Day off (moved)"
+        }
+        return nil
+    }
+
+    /// Labour Code art. 112.
+    static let russianHolidays: [String: String] = [
+        "01-01": "New Year holidays", "01-02": "New Year holidays", "01-03": "New Year holidays", "01-04": "New Year holidays",
+        "01-05": "New Year holidays", "01-06": "New Year holidays", "01-07": "Orthodox Christmas", "01-08": "New Year holidays",
+        "02-23": "Defender of the Fatherland Day", "03-08": "International Women's Day", "05-01": "Spring and Labour Day",
+        "05-09": "Victory Day", "06-12": "Russia Day", "11-04": "Unity Day",
+    ]
 
     /// Russia's production calendar (xmlcalendar.ru, government decrees on moved days off).
     /// Holidays on weekdays and working weekends only: weekends are known anyway.

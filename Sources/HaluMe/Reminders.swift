@@ -58,6 +58,12 @@ enum Reminders {
                     items.append(("halume.trial.\(sub.id)", at(max(warn, today), hour: 11), sub.name,
                                   String(localized: "Free trial ends \(ends.relativeDay). Cancel now if you don't need it.")))
                 }
+                // Every three months: still using it?
+                let review = calendar.date(byAdding: .month, value: 3, to: calendar.startOfDay(for: sub.reviewed ?? sub.anchor))!
+                if review <= horizon {
+                    items.append(("halume.review.\(sub.id)", at(max(review, calendar.date(byAdding: .day, value: 1, to: today)!), hour: 11), sub.name,
+                                  String(localized: "Still using it? It costs \((Planner.monthlyCost(of: sub) * 12).rounded().money(sub.currency ?? budget.currency)) a year. Check in Subscriptions.")))
+                }
                 for date in planner.charges(of: sub, from: today, to: horizon) where date != sub.trialEnds.map(calendar.startOfDay) {
                     items.append(("halume.sub.\(sub.id).\(date.timeIntervalSince1970)", at(dayBefore(date), hour: 18), sub.name,
                                   String(localized: "Charge tomorrow: \(sub.amount.money(sub.currency ?? budget.currency))")))

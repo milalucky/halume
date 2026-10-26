@@ -61,6 +61,9 @@ struct StatsPage: View {
                 ChartCard(title: "Income", subtitle: "Dashed line: what you expected") {
                     IncomeChart(buckets: buckets, grouping: range.grouping)
                 }
+                ChartCard(title: "Pay against plan", subtitle: LocalizedStringKey(payTrend(periods, currency: currency))) {
+                    PayDiffChart(buckets: buckets, grouping: range.grouping)
+                }
                 ChartCard(title: "Where pay went", subtitle: nil) {
                     SplitChart(buckets: buckets, grouping: range.grouping)
                 }
@@ -73,6 +76,18 @@ struct StatsPage: View {
                            text: "Stats build up from your paydays: what came in, what you moved, what was left.")
             }
         }
+    }
+
+    /// "On average 4% above plan; less than planned 3 times of 12."
+    private func payTrend(_ periods: [PeriodStats], currency: String) -> String {
+        let expected = periods.reduce(Decimal(0)) { $0 + $1.expected }
+        guard expected > 0 else { return String(localized: "Green: more than planned, orange: less.") }
+        let diff = periods.reduce(Decimal(0)) { $0 + $1.pay - $1.expected }
+        let percent = Int((diff / expected * 100).rounded().double)
+        let short = periods.filter { $0.pay < $0.expected }.count
+        let average = percent == 0 ? String(localized: "On average as planned")
+            : percent > 0 ? String(localized: "On average \(percent)% above plan") : String(localized: "On average \(-percent)% below plan")
+        return String(localized: "\(average); less than planned \(short) times of \(periods.count).")
     }
 
     private func export(_ periods: [PeriodStats]) {
@@ -148,6 +163,25 @@ private struct IncomeChart: View {
         }
         .chartYAxis { AxisMarks(position: .leading) { _ in AxisGridLine().foregroundStyle(.quaternary); AxisValueLabel() } }
         .chartXAxis { AxisMarks { _ in AxisValueLabel(format: grouping == .payday ? .dateTime.day().month(.abbreviated) : .dateTime.month(.abbreviated)) } }
+    }
+}
+
+/// How much each pay was above or below what was planned.
+private struct PayDiffChart: View {
+    let buckets: [PeriodStats]
+    let grouping: Grouping
+
+    var body: some View {
+        Chart(buckets) { b in
+            let diff = (b.pay - b.expected).double
+            BarMark(x: .value("Date", b.date, unit: unit(grouping)), y: .value("Difference", diff))
+                .foregroundStyle(diff >= 0 ? Palette.green : Palette.orange)
+                .cornerRadius(4)
+            RuleMark(y: .value("Plan", 0)).foregroundStyle(Color.primary.opacity(0.3))
+        }
+        .chartYAxis { AxisMarks(position: .leading) { _ in AxisGridLine().foregroundStyle(.quaternary); AxisValueLabel() } }
+        .chartXAxis { AxisMarks { _ in AxisValueLabel(format: grouping == .payday ? .dateTime.day().month(.abbreviated) : .dateTime.month(.abbreviated)) } }
+        .accessibilityLabel(Text("Pay above or below plan"))
     }
 }
 

@@ -36,6 +36,11 @@ Plan money once per payday instead of logging every expense. Few people keep log
 - **Yearly costs on a date** (`Goal.annual`): an estimate saved for by the next occurrence of a day and month.
 - The plan on Today is grouped into envelopes (bills, subscriptions, debts, kept for later, savings, projects); subscriptions start folded.
 - Display: thousands separator chosen in Settings (`NumberStyle`: space, dot, comma), theme (system/light/dark).
+- **Irregular income** (`Income.irregular`): earnings are recorded as inflows tied to the income; the 1st of each month pays last month's earnings (an estimate until any are recorded).
+- **Pay ahead** (`Payday.keep`): part of a bigger-than-usual pay is kept for the next payday.
+- **Insights** (HaluMeCore/Insights.swift): runway (savings ÷ a month's costs + usual spending), net worth (savings + `Asset`s − debts, monthly history), who owes whom (shared costs paid from one person's account; `Settlement` marks), subscription review every 3 months (`Subscription.reviewed`), payday recap, what-if scenarios (a changed copy of the budget).
+- **Calendar** section: the country's production calendar (holiday names: Russia built in, others from date.nager.at), paydays, time off; pick days to plan a vacation or sick leave. History section: everything outside the plan, editable. Net worth section. Menu bar extra shows the amount a day.
+- Interest accrues daily and is paid on the payout day; debt interest is added on each due date up to the last payment marked done; debts can be paid every two weeks (`Debt.biweeklyFrom`). Russian sick pay is capped (2026: 6 827,40 a day).
 - **No** expense logging and no bank connections.
 
 ## Households
@@ -57,7 +62,7 @@ One model for a single person, a fully shared or a partly shared budget. Every i
 
 ## Next
 
-- Current work list: `docs/feedback-2026-10-27.md` (the user's test feedback, with status).
+- Work lists: `docs/feedback-2026-10-27.md`, `docs/work-2026-10-27b.md` (with status).
 
 - CloudKit sync and partner sharing → iPhone app + widget → Watch → Halu notch glance.
 - Irregular income ("live on last month's money" buffer).

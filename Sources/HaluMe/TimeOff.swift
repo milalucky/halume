@@ -75,6 +75,18 @@ struct TimeOffSheet: View {
     @State private var to = Calendar.current.date(byAdding: .day, value: 27, to: Calendar.current.startOfDay(for: Date()))!
     @State private var percent = 100
 
+    /// Opened from the calendar with days picked: adding closes the sheet.
+    private var draftGiven = false
+
+    init(draft: TimeOffDraft? = nil) {
+        draftGiven = draft != nil
+        if let draft {
+            _kind = State(initialValue: draft.kind)
+            _from = State(initialValue: draft.from)
+            _to = State(initialValue: draft.to)
+        }
+    }
+
     var body: some View {
         let budget = store.budget
         let me = store.me
@@ -146,6 +158,7 @@ struct TimeOffSheet: View {
                 Button("Add") {
                     guard let me else { return }
                     store.budget?.absences.append(Absence(member: me, kind: kind, from: from, to: max(from, to), sickPercent: percent))
+                    if draftGiven { dismiss() }
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)

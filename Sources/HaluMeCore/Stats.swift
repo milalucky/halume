@@ -5,6 +5,8 @@ public struct PeriodStats: Sendable, Hashable, Identifiable {
     public var id: Date { date }
     public var date: Date
     public var expected: Decimal
+    /// The pay itself (actual, or expected when not entered), without money from outside paydays.
+    public var pay: Decimal
     public var income: Decimal
     /// Bills and subscriptions.
     public var bills: Decimal
@@ -26,7 +28,7 @@ public struct PeriodStats: Sendable, Hashable, Identifiable {
 
     public static func + (a: Self, b: Self) -> Self {
         var sum = a
-        sum.expected += b.expected; sum.income += b.income; sum.bills += b.bills
+        sum.expected += b.expected; sum.pay += b.pay; sum.income += b.income; sum.bills += b.bills
         sum.debtPlanned += b.debtPlanned; sum.debtPaid += b.debtPaid
         sum.savingPlanned += b.savingPlanned; sum.saved += b.saved
         sum.withdrawn += b.withdrawn; sum.interest += b.interest; sum.free += b.free
@@ -35,7 +37,7 @@ public struct PeriodStats: Sendable, Hashable, Identifiable {
     }
 
     static func empty(_ date: Date) -> Self {
-        Self(date: date, expected: 0, income: 0, bills: 0, debtPlanned: 0, debtPaid: 0, savingPlanned: 0, saved: 0,
+        Self(date: date, expected: 0, pay: 0, income: 0, bills: 0, debtPlanned: 0, debtPaid: 0, savingPlanned: 0, saved: 0,
              withdrawn: 0, interest: 0, free: 0, leftover: nil)
     }
 }
@@ -69,7 +71,7 @@ extension Planner {
                 }
             let nextRecord = payday(of: member, on: end)
             return PeriodStats(
-                date: start, expected: expected(of: member, on: start), income: (record.actual ?? expected(of: member, on: start))
+                date: start, expected: expected(of: member, on: start), pay: record.actual ?? expected(of: member, on: start), income: (record.actual ?? expected(of: member, on: start))
                     + budget.inflows.filter { $0.member == member && $0.income == nil && day($0.date) >= start && day($0.date) < end }
                         .reduce(0) { $0 + budget.convert($1.amount, from: $1.currency) },
                 bills: sum(isBill), debtPlanned: sum(isDebt), debtPaid: sum(isDebt, done: true),
