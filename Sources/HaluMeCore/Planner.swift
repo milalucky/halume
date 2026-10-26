@@ -372,6 +372,10 @@ public struct Planner: Sendable {
         }
         for inflow in budget.inflows where day(inflow.date) < date {
             for a in inflow.allocations where a.target == .envelope(envelope.id) { events.append((day(inflow.date), a.amount)) }
+            // Money taken out to cover spending.
+            if inflow.kind == .fromSaving, inflow.fromEnvelope == envelope.id {
+                events.append((day(inflow.date), -budget.convert(inflow.amount, from: inflow.currency)))
+            }
         }
         for t in budget.transfers where day(t.date) < date && (t.from == envelope.id || t.to == envelope.id) {
             events.append((day(t.date), t.from == envelope.id ? -t.amount : t.amount))
@@ -664,8 +668,9 @@ public struct Planner: Sendable {
     /// "About N a day until payday". With a balance check this period:
     /// (balance − allocations not yet done) / days from the check; otherwise free money / period length.
     /// Spending money a period gained or lost outside its plan: what's left of extra money, minus unplanned spending.
-    public func adjustment(of member: UUID, from: Date, to: Date) -> Decimal {
-        let inside = { (d: Date) in self.day(d) >= self.day(from) && self.day(d) <= self.day(to) }
+    /// `after`: only what happened after that moment (a balance check already holds the rest of its day).
+    public func adjustment(of member: UUID, from: Date, to: Date, after: Date? = nil) -> Decimal {
+        let inside = { (d: Date) in self.day(d) >= self.day(from) && self.day(d) <= self.day(to) && after.map { d > $0 } ?? true }
         let gained = budget.inflows.filter { $0.member == member && $0.income == nil && inside($0.date) }
             .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) - $1.allocations.reduce(0) { $0 + $1.amount } }
         let spent = budget.outflows.filter { $0.member == member && inside($0.date) }
@@ -683,7 +688,7 @@ public struct Planner: Sendable {
             .max(by: { $0.date < $1.date }) {
             let unpaid = allocations.filter { !$0.isDone && $0.target != .free }.reduce(0) { $0 + $1.amount }
             // The balance already holds what came or went before it was checked.
-            let since = adjustment(of: member, from: add(1, to: day(check.date))!, to: add(-1, to: next)!)
+            let since = adjustment(of: member, from: day(check.date), to: add(-1, to: next)!, after: check.date)
             perDay = max(0, check.amount - unpaid + since) / Decimal(max(1, days(day(check.date), next)))
         } else {
             let free = (allocations.first { $0.target == .free }?.amount ?? 0) + adjustment(of: member, from: start, to: add(-1, to: next)!)

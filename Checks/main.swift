@@ -548,6 +548,30 @@ check(recap?.saved == 8_000 && recap?.paid == 1_000 && recap?.goals.first?.name 
 let whatIf = soloP.scenario(member: me.id, payChange: -20, newMonthlyCost: 5_000)
 check(whatIf.plan(for: me.id, on: d(2026, 10, 23)).free < soloP.plan(for: me.id, on: d(2026, 10, 23)).free, "what if: less to spend")
 
+// Envelope kinds: a yearly cost is saved to spend, an open cushion is kept.
+check(Envelope(owner: .shared, name: "Insurance", goal: .annual(30_000, on: d(2027, 3, 1))).role == .spend
+      && Envelope(owner: .shared, name: "Cushion", goal: .open).role == .keep, "envelope kinds from the goal")
+
+// Covering overspending: 5 000 from the cushion into spending money, after a balance check that morning.
+var cover = solo
+var fromCushion = Inflow(member: me.id, date: d(2026, 10, 27).addingTimeInterval(13 * 3600), amount: 5_000, note: "Cover")
+fromCushion.kind = .fromSaving
+fromCushion.fromEnvelope = cover.envelopes[0].id
+cover.inflows = [fromCushion]
+let coverP = Planner(cover, calendar: calendar)
+check(coverP.balance(of: cover.envelopes[0], before: d(2026, 10, 28)) == 115_000, "the cushion gives 5 000")
+check(coverP.adjustment(of: me.id, from: d(2026, 10, 27), to: d(2026, 10, 31), after: d(2026, 10, 27).addingTimeInterval(12 * 3600)) == 5_000,
+      "and spending money gets it, even on the day of the balance check")
+check(coverP.history(of: me.id, from: d(2026, 10, 1), to: d(2026, 10, 31)).allSatisfy { $0.income == $0.pay }, "a move is not income")
+
+// Leftover kept for myself adds to spending money but isn't income.
+var leftoverKept = Inflow(member: me.id, date: d(2026, 10, 23), amount: 3_000, note: "Left")
+leftoverKept.kind = .leftover
+var kept2 = solo
+kept2.inflows = [leftoverKept]
+let keptP = Planner(kept2, calendar: calendar)
+check(keptP.adjustment(of: me.id, from: d(2026, 10, 23), to: d(2026, 11, 9)) == 3_000 && !leftoverKept.isNewMoney, "leftover kept to spend")
+
 print(failures == 0 ? "All checks passed" : "\(failures) checks failed")
 exit(failures == 0 ? 0 : 1)
 

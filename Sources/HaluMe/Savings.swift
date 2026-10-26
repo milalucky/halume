@@ -55,8 +55,29 @@ struct SavingsGrid: View {
 
     var body: some View {
         let budget = planner.budget
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 12)], spacing: 12) {
-            ForEach(budget.envelopes.sorted { $0.priority < $1.priority }) { envelope in
+        let keep = budget.envelopes.filter { $0.role == .keep }, spend = budget.envelopes.filter { $0.role == .spend }
+        if !keep.isEmpty {
+            group("Keeping", "Your cushion and long-term money. Not to be touched.", keep)
+        }
+        if !spend.isEmpty {
+            group("Saving to spend", "Filled for a cost, then spent on it: insurance, a trip, gifts.", spend)
+        }
+    }
+
+    private func group(_ title: LocalizedStringKey, _ text: LocalizedStringKey, _ envelopes: [Envelope]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(text).font(.caption).foregroundStyle(.secondary)
+            }
+            grid(envelopes)
+        }
+    }
+
+    private func grid(_ envelopes: [Envelope]) -> some View {
+        let budget = planner.budget
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 12)], spacing: 12) {
+            ForEach(envelopes.sorted { $0.priority < $1.priority }) { envelope in
                 let balance = planner.balance(of: envelope, before: tomorrow(today))
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {

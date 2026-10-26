@@ -469,6 +469,17 @@ struct SavingsEditor: View {
                         .frame(width: 150, alignment: .leading)
                     Spacer(minLength: 0)
                 }
+                Field("What it's for", hint: envelope.role == .spend
+                      ? "Filled up, then spent on its cost. It doesn't count as your safety cushion."
+                      : "Not to be touched: it counts toward your safety cushion and net worth.") {
+                    Picker("What it's for", selection: Binding(get: { envelope.role }, set: { envelope.purpose = $0 })) {
+                        Text("Saving to spend").tag(Purpose.spend)
+                        Text("Keeping").tag(Purpose.keep)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 280)
+                }
                 if store.budget != nil {
                     AccountPicker(envelope: $envelope)
                 } else {

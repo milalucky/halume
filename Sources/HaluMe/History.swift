@@ -6,7 +6,7 @@ struct HistoryPage: View {
     @Environment(BudgetStore.self) private var store
 
     private struct Entry: Identifiable {
-        enum Kind { case inflow(Inflow), spending(Spending), project, transfer(Transfer) }
+        enum Kind { case inflow(Inflow), spending(Spending), project, transfer(Transfer), other(Inflow) }
         let id: UUID
         let date: Date
         let title: String
@@ -84,6 +84,8 @@ struct HistoryPage: View {
         .contextMenu {
             if case .project = entry.kind {
                 Button("Open Projects") { store.section = .projects }
+            } else if case .other = entry.kind {
+                Button("Delete", role: .destructive) { delete(entry) }
             } else {
                 Button("Edit…") { open(entry) }
                 Button("Delete", role: .destructive) { delete(entry) }
@@ -92,7 +94,11 @@ struct HistoryPage: View {
     }
 
     private func helpText(_ entry: Entry) -> LocalizedStringKey {
-        if case .project = entry.kind { "Paid for a project step. Change it in the project." } else { "Click to change or delete" }
+        switch entry.kind {
+        case .project: "Paid for a project step. Change it in the project."
+        case .other: "Right-click to delete"
+        default: "Click to change or delete"
+        }
     }
 
     private func open(_ entry: Entry) {
@@ -101,6 +107,7 @@ struct HistoryPage: View {
         case .spending(let spending): store.sheet = .outflow(spending)
         case .transfer(let transfer): store.sheet = .transfer(transfer)
         case .project: store.section = .projects
+        case .other: break
         }
     }
 
@@ -109,6 +116,7 @@ struct HistoryPage: View {
         case .inflow(let inflow): store.deleteInflow(inflow.id)
         case .spending(let spending): store.deleteSpending(spending.id)
         case .transfer(let transfer): store.deleteTransfer(transfer.id)
+        case .other(let inflow): store.deleteInflow(inflow.id)
         case .project: break
         }
     }
@@ -116,7 +124,26 @@ struct HistoryPage: View {
     private func entries(of budget: Budget) -> [Entry] {
         let name = { (id: UUID) in budget.envelopes.first { $0.id == id }?.name ?? String(localized: "Deleted saving") }
         var out: [Entry] = []
-        for inflow in budget.inflows {
+        for inflow in budget.inflows where inflow.kind != .extra {
+            let into = inflow.allocations.first.flatMap { if case .envelope(let id) = $0.target { name(id) } else { nil } }
+            let amount = budget.convert(inflow.amount, from: inflow.currency)
+            switch inflow.kind {
+            case .leftover:
+                out.append(Entry(id: inflow.id, date: inflow.date, title: String(localized: "Left from the last pay"),
+                                 detail: into.map { String(localized: "Into \($0)") } ?? String(localized: "To spending money"),
+                                 amount: nil, icon: "arrow.uturn.forward.circle", kind: .other(inflow)))
+            case .fromSaving:
+                out.append(Entry(id: inflow.id, date: inflow.date, title: inflow.note,
+                                 detail: String(localized: "\(amount.money(budget.currency)) into spending money"),
+                                 amount: nil, icon: "arrow.down.circle", kind: .other(inflow)))
+            case .reconcile:
+                out.append(Entry(id: inflow.id, date: inflow.date, title: String(localized: "Account check"),
+                                 detail: into.map { String(localized: "Into \($0)") } ?? "", amount: amount, icon: "checkmark.seal", kind: .other(inflow)))
+            case .extra:
+                break
+            }
+        }
+        for inflow in budget.inflows where inflow.kind == .extra {
             let saved = inflow.allocations.reduce(Decimal(0)) { $0 + $1.amount }
             let income = inflow.income.flatMap { id in budget.incomes.first { $0.id == id } }
             let detail = income != nil ? String(localized: "Earnings, for next month")

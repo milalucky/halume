@@ -27,6 +27,46 @@ extension BudgetStore {
         self.budget = budget
     }
 
+    /// The leftover recorded with the payday on `date`, if it was kept or put into an envelope.
+    func leftoverInflow(payday date: Date) -> Inflow? {
+        budget?.inflows.first { $0.kind == .leftover && $0.member == me && Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+
+    /// What was left from the last pay: noted only, kept to spend, or put into an envelope (an id).
+    func useLeftover(_ amount: Decimal, to use: String, payday date: Date) {
+        guard var budget, let me else { return }
+        let old = leftoverInflow(payday: date)
+        budget.inflows.removeAll { $0.id == old?.id }
+        if amount > 0, use != "note" {
+            var inflow = Inflow(id: old?.id ?? UUID(), member: me, date: Calendar.current.startOfDay(for: date), amount: amount,
+                                note: String(localized: "Left from the last pay"))
+            inflow.kind = .leftover
+            if let id = UUID(uuidString: use) { inflow.allocations = [Allocation(target: .envelope(id), amount: amount, isDone: true)] }
+            budget.inflows.append(inflow)
+        }
+        self.budget = budget
+    }
+
+    /// What the card should hold right now if spending went by the plan: what's still to pay or put aside
+    /// plus the day's amount for the days left (today included).
+    func expectedBalance(on date: Date = Date()) -> Decimal? {
+        guard let planner, let me, let start = planner.current(on: date, of: me),
+              let allowance = planner.allowance(for: me, on: date) else { return nil }
+        let allocations = planner.payday(of: me, on: start)?.allocations ?? planner.confirm(planner.plan(for: me, on: start), actual: nil).allocations
+        let unpaid = allocations.filter { !$0.isDone && $0.target != .free }.reduce(Decimal(0)) { $0 + $1.amount }
+        return unpaid + allowance.perDay * Decimal(allowance.daysLeft)
+    }
+
+    /// Money moved from a saving into the spending money, just after the balance check that showed the gap.
+    func cover(_ amount: Decimal, from envelope: UUID) {
+        guard let me else { return }
+        var inflow = Inflow(member: me, date: Date().addingTimeInterval(1), amount: amount,
+                            note: String(localized: "Covered from \(budget?.envelopes.first { $0.id == envelope }?.name ?? "")"))
+        inflow.kind = .fromSaving
+        inflow.fromEnvelope = envelope
+        budget?.inflows.append(inflow)
+    }
+
     func deleteSpending(_ id: UUID) {
         budget?.outflows.removeAll { $0.id == id }
         budget?.withdrawals.removeAll { $0.id == id }

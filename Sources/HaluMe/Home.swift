@@ -311,7 +311,7 @@ private struct IncomeRow: View {
 
 /// The envelopes a paycheck is split into, in plan order.
 enum PlanGroup: Int, CaseIterable, Hashable {
-    case bills, subscriptions, debts, kept, savings, projects
+    case bills, subscriptions, debts, kept, toSpend, savings, projects
 
     var title: LocalizedStringKey {
         switch self {
@@ -319,6 +319,7 @@ enum PlanGroup: Int, CaseIterable, Hashable {
         case .subscriptions: "Subscriptions"
         case .debts: "Debts"
         case .kept: "Kept for later"
+        case .toSpend: "Saving to spend"
         case .savings: "Savings"
         case .projects: "Projects"
         }
@@ -330,6 +331,7 @@ enum PlanGroup: Int, CaseIterable, Hashable {
         case .subscriptions: "repeat"
         case .debts: "creditcard"
         case .kept: "arrow.uturn.forward"
+        case .toSpend: "shippingbox"
         case .savings: "tray.full"
         case .projects: "flag.checkered"
         }

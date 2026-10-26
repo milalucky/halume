@@ -63,6 +63,8 @@ extension Planner {
             let mine = Set(budget.envelopes.filter { share(of: member, owner: $0.owner, split: $0.split, on: start) > 0 }.map(\.id))
             let withdrawn = budget.withdrawals.filter { mine.contains($0.envelope) && day($0.date) >= start && day($0.date) < end }
                 .reduce(0) { $0 + $1.amount }
+                + budget.inflows.filter { $0.kind == .fromSaving && $0.fromEnvelope.map(mine.contains) ?? false && day($0.date) >= start && day($0.date) < end }
+                .reduce(0) { $0 + budget.convert($1.amount, from: $1.currency) }
             let interest = budget.envelopes.map(budget.terms(of:)).filter { mine.contains($0.id) && $0.holding.earnsInterest && $0.rate > 0 }
                 .reduce(Decimal(0)) { total, envelope in
                     total + monthDays([envelope.interestDay], from: start, to: add(-1, to: end)!)
@@ -72,7 +74,7 @@ extension Planner {
             let nextRecord = payday(of: member, on: end)
             return PeriodStats(
                 date: start, expected: expected(of: member, on: start), pay: record.actual ?? expected(of: member, on: start), income: (record.actual ?? expected(of: member, on: start))
-                    + budget.inflows.filter { $0.member == member && $0.income == nil && day($0.date) >= start && day($0.date) < end }
+                    + budget.inflows.filter { $0.member == member && $0.isNewMoney && day($0.date) >= start && day($0.date) < end }
                         .reduce(0) { $0 + budget.convert($1.amount, from: $1.currency) },
                 bills: sum(isBill), debtPlanned: sum(isDebt), debtPaid: sum(isDebt, done: true),
                 savingPlanned: sum(isEnvelope), saved: sum(isEnvelope, done: true), withdrawn: withdrawn, interest: interest,

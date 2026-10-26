@@ -206,7 +206,10 @@ struct TodayPage: View {
                     PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency, weekly: budget.plansByWeek,
                              onEditPlan: { store.sheet = .plan }, source: { budget.source(of: $0) },
                              group: { target in
-                                 if case .envelope(let id) = target, case .project = budget.envelopes.first(where: { $0.id == id })?.goal { return .projects }
+                                 if case .envelope(let id) = target, let envelope = budget.envelopes.first(where: { $0.id == id }) {
+                                     if case .project = envelope.goal { return .projects }
+                                     return envelope.role == .spend ? .toSpend : .savings
+                                 }
                                  return switch target {
                                  case .bill: .bills
                                  case .subscription: .subscriptions

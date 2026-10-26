@@ -68,7 +68,8 @@ extension Planner {
     public func runway(of member: UUID, on date: Date) -> Runway {
         let date = day(date), tomorrow = add(1, to: date)!
         var savings: Decimal = 0, locked: Decimal = 0
-        for envelope in budget.envelopes {
+        // Only money that is kept: savings for a planned cost (insurance, a trip) are already spoken for.
+        for envelope in budget.envelopes where envelope.role == .keep {
             let s = share(of: member, owner: envelope.owner, split: envelope.split, on: date)
             guard s > 0 else { continue }
             let amount = balance(of: envelope, before: tomorrow) * s
@@ -208,12 +209,14 @@ extension Planner {
         let saved = record.allocations.filter { isEnvelope($0.target) && $0.isDone }.reduce(0) { $0 + $1.amount }
         let planned = record.allocations.filter { isEnvelope($0.target) }.reduce(0) { $0 + $1.amount }
         let paid = record.allocations.filter { isPaid($0.target) && $0.isDone }.reduce(0) { $0 + $1.amount }
-        let extra = budget.inflows.filter { $0.member == member && $0.income == nil && inside($0.date) }
+        let extra = budget.inflows.filter { $0.member == member && $0.isNewMoney && inside($0.date) }
             .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) }
         let unplanned = budget.outflows.filter { $0.member == member && inside($0.date) }
             .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) }
         let mine = budget.envelopes.filter { share(of: member, owner: $0.owner, split: $0.split, on: start) > 0 }
         let takenOut = budget.withdrawals.filter { w in inside(w.date) && mine.contains { $0.id == w.envelope } }.reduce(0) { $0 + $1.amount }
+            + budget.inflows.filter { i in i.kind == .fromSaving && inside(i.date) && mine.contains { $0.id == i.fromEnvelope } }
+            .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) }
         let goals = mine.compactMap { envelope -> Recap.Goal? in
             let before = balance(of: envelope, before: start), after = balance(of: envelope, before: current)
             guard after != before else { return nil }

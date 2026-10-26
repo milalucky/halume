@@ -240,6 +240,17 @@ public struct Envelope: Codable, Sendable, Hashable, Identifiable {
     public var revealOn: Date?
     /// The account the money lives in; its terms (rate, payout day) replace the ones above.
     public var account: UUID?
+    /// Saved to spend (insurance, a trip) or kept (cushion, investments); nil: decided by the goal.
+    public var purpose: Purpose?
+
+    /// What the money is for: filled and then spent, or kept.
+    public var role: Purpose {
+        if let purpose { return purpose }
+        switch goal {
+        case .annual, .yearly, .project, .target: return .spend
+        case .percent, .perPayday, .open: return .keep
+        }
+    }
 
     public init(id: UUID = UUID(), owner: Owner, name: String, goal: Goal, priority: Int = 0,
                 split: Split = .equal, opening: Decimal = 0, openedAt: Date = Date(),
@@ -270,7 +281,16 @@ public struct Envelope: Codable, Sendable, Hashable, Identifiable {
         hidden = try c.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
         revealOn = try c.decodeIfPresent(Date.self, forKey: .revealOn)
         account = try c.decodeIfPresent(UUID.self, forKey: .account)
+        purpose = try c.decodeIfPresent(Purpose.self, forKey: .purpose)
     }
+}
+
+/// Envelopes of savings come in two kinds; bills, subscriptions and debts are the third (money that leaves).
+public enum Purpose: String, Codable, Sendable, Hashable, CaseIterable {
+    /// Filled for a cost and then spent: insurance, a vacation, gifts.
+    case spend
+    /// Not to be touched: the cushion, investments.
+    case keep
 }
 
 public enum Holding: String, Codable, Sendable, Hashable, CaseIterable {
@@ -522,6 +542,8 @@ public struct Account: Codable, Sendable, Hashable, Identifiable {
     public var canWithdraw: Bool
     /// A deposit's end date.
     public var maturity: Date?
+    /// When the user last compared the real balance with the app's.
+    public var checked: Date?
 
     public init(id: UUID = UUID(), name: String, kind: AccountKind, owner: Owner, currency: String? = nil, rate: Decimal = 0,
                 interestDay: Int = 1, interestTo: UUID? = nil, canWithdraw: Bool = true, maturity: Date? = nil) {
@@ -569,12 +591,43 @@ public struct Inflow: Codable, Sendable, Hashable, Identifiable {
     public var allocations: [Allocation]
     /// Earnings of an irregular income: they become next month's budget instead of spending money now.
     public var income: UUID?
+    public var kind: InflowKind
+    /// `.fromSaving`: the envelope the money came out of.
+    public var fromEnvelope: UUID?
 
     public init(id: UUID = UUID(), member: UUID, date: Date = Date(), amount: Decimal, currency: String? = nil, note: String = "",
                 allocations: [Allocation] = [], income: UUID? = nil) {
         self.id = id; self.member = member; self.date = date; self.amount = amount; self.currency = currency
-        self.note = note; self.allocations = allocations; self.income = income
+        self.note = note; self.allocations = allocations; self.income = income; self.kind = .extra
     }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        member = try c.decode(UUID.self, forKey: .member)
+        date = try c.decode(Date.self, forKey: .date)
+        amount = try c.decode(Decimal.self, forKey: .amount)
+        currency = try c.decodeIfPresent(String.self, forKey: .currency)
+        note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+        allocations = try c.decodeIfPresent([Allocation].self, forKey: .allocations) ?? []
+        income = try c.decodeIfPresent(UUID.self, forKey: .income)
+        kind = try c.decodeIfPresent(InflowKind.self, forKey: .kind) ?? .extra
+        fromEnvelope = try c.decodeIfPresent(UUID.self, forKey: .fromEnvelope)
+    }
+
+    /// New money from outside: a gift, a bonus (not a leftover, a move or a correction).
+    public var isNewMoney: Bool { kind == .extra && income == nil }
+}
+
+public enum InflowKind: String, Codable, Sendable, Hashable {
+    /// A gift, a bonus, a refund.
+    case extra
+    /// What was left from the last pay, kept to spend or put into envelopes.
+    case leftover
+    /// Money taken from a saving into the spending money (to cover overspending).
+    case fromSaving
+    /// An account check found more than expected; less is a withdrawal.
+    case reconcile
 }
 
 /// Unplanned spending paid from the spending money (treatment, a repair, a fine).
