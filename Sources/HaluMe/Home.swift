@@ -81,8 +81,13 @@ struct PlanList: View {
     var onEditPlan: (() -> Void)?
     /// "from T-Bank card" for a line, when known.
     var source: ((Target) -> String?)?
+    /// Which envelope a line belongs to (bills, subscriptions…); by its kind when not given.
+    var group: ((Target) -> PlanGroup)?
+    /// Money that came or went outside the plan this period (gifts, unplanned spending), signed.
+    var outside: [(title: String, amount: Decimal)] = []
     /// nil shows the list read-only.
     let toggle: ((Target) -> Void)?
+    @State private var folded: Set<PlanGroup> = [.subscriptions]
 
     var body: some View {
         let done = plan.lines.filter { isDone($0) }.count
@@ -113,9 +118,33 @@ struct PlanList: View {
                           detail: Text("For this smaller payday"), amount: plan.carriedIn, currency: currency)
             }
 
-            ForEach(plan.lines, id: \.target) { line in
+            // Envelopes: each group of lines with its total; tap a header to fold it.
+            ForEach(PlanGroup.allCases, id: \.self) { kind in
+                let lines = plan.lines.filter { groupOf($0.target) == kind }
+                if !lines.isEmpty {
+                    Divider().opacity(0.6)
+                    groupHeader(kind, lines: lines)
+                    if !folded.contains(kind) {
+                        ForEach(lines, id: \.target) { line in
+                            row(line).padding(.leading, 14)
+                        }
+                    }
+                }
+            }
+
+            ForEach(Array(outside.enumerated()), id: \.offset) { _, item in
                 Divider().opacity(0.6)
-                row(line)
+                HStack(spacing: 12) {
+                    Image(systemName: item.amount >= 0 ? "plus.circle" : "minus.circle")
+                        .foregroundStyle(item.amount >= 0 ? Palette.green : Palette.orange).frame(width: 24)
+                    Text(item.title)
+                    Spacer()
+                    Text((item.amount >= 0 ? "+" : "−") + abs(item.amount.double).formatted(.currency(code: currency).presentation(.narrow)
+                        .precision(.fractionLength(0)).locale(NumberStyle.current.locale)))
+                        .monospacedDigit()
+                        .foregroundStyle(item.amount >= 0 ? Palette.green : .primary)
+                }
+                .padding(.vertical, 10)
             }
 
             Divider().opacity(0.6)
@@ -123,7 +152,7 @@ struct PlanList: View {
                 Image(systemName: "sun.max.fill").foregroundStyle(Palette.orange).frame(width: 24)
                 Text("Yours to spend").font(.body.weight(.semibold))
                 Spacer()
-                Text(plan.free.money(currency)).font(.body.weight(.semibold)).monospacedDigit()
+                Text(max(0, plan.free + outside.reduce(0) { $0 + $1.amount }).money(currency)).font(.body.weight(.semibold)).monospacedDigit()
             }
             .padding(.vertical, 12)
 
@@ -141,6 +170,44 @@ struct PlanList: View {
             }
         }
         .card(padding: 20)
+    }
+
+    private func groupOf(_ target: Target) -> PlanGroup {
+        if let group { return group(target) }
+        return switch target {
+        case .bill: .bills
+        case .subscription: .subscriptions
+        case .debt: .debts
+        case .carry: .kept
+        default: .savings
+        }
+    }
+
+    private func groupHeader(_ kind: PlanGroup, lines: [Plan.Line]) -> some View {
+        let done = lines.filter { isDone($0) }.count
+        let total = lines.reduce(Decimal(0)) { $0 + $1.amount }
+        return Button {
+            withAnimation(.easeOut(duration: 0.15)) {
+                if folded.contains(kind) { folded.remove(kind) } else { folded.insert(kind) }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: folded.contains(kind) ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary).frame(width: 24)
+                Image(systemName: kind.icon).foregroundStyle(Palette.orange)
+                Text(kind.title).font(.subheadline.weight(.semibold))
+                if toggle != nil {
+                    Text("\(done)/\(lines.count)").font(.caption).foregroundStyle(done == lines.count ? Palette.green : Color.secondary)
+                }
+                Spacer()
+                Text(total.money(currency)).font(.subheadline.weight(.semibold)).monospacedDigit()
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(kind.title))
+        .accessibilityValue(Text(total.money(currency)))
     }
 
     private func isDone(_ line: Plan.Line) -> Bool {
@@ -239,5 +306,32 @@ private struct IncomeRow: View {
         }
         .padding(.vertical, 10)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The envelopes a paycheck is split into, in plan order.
+enum PlanGroup: Int, CaseIterable, Hashable {
+    case bills, subscriptions, debts, kept, savings, projects
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .bills: "Bills"
+        case .subscriptions: "Subscriptions"
+        case .debts: "Debts"
+        case .kept: "Kept for later"
+        case .savings: "Savings"
+        case .projects: "Projects"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .bills: "doc.text"
+        case .subscriptions: "repeat"
+        case .debts: "creditcard"
+        case .kept: "arrow.uturn.forward"
+        case .savings: "tray.full"
+        case .projects: "flag.checkered"
+        }
     }
 }

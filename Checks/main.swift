@@ -404,6 +404,24 @@ let novTurn = sp.share(of: me.id, owner: .shared, split: .turns, on: d(2026, 11,
 let decTurn = sp.share(of: me.id, owner: .shared, split: .turns, on: d(2026, 12, 10))
 check(novTurn + decTurn == 1 && novTurn * decTurn == 0, "taking turns month by month")
 
+// Money outside the plan: a 30,000 gift (10,000 to a saving), a 6,000 repair, a move between savings.
+var outside = budget
+outside.paydays = []; outside.debts = []; outside.subscriptions = []
+let jar = Envelope(owner: .member(me.id), name: "Jar", goal: .open), box = Envelope(owner: .member(me.id), name: "Box", goal: .open)
+outside.envelopes = [jar, box]
+var op = Planner(outside, calendar: calendar)
+let allowanceBefore = op.allowance(for: me.id, on: d(2026, 10, 25))!.perDay
+outside.inflows = [Inflow(member: me.id, date: d(2026, 10, 24), amount: 30_000, note: "Gift",
+                          allocations: [Allocation(target: .envelope(jar.id), amount: 10_000, isDone: true)])]
+outside.outflows = [Outflow(member: me.id, date: d(2026, 10, 25), amount: 6_000, note: "Repair")]
+outside.transfers = [Transfer(from: jar.id, to: box.id, date: d(2026, 10, 26), amount: 4_000)]
+op = Planner(outside, calendar: calendar)
+let periodDays = Decimal(18) // 23 Oct – 10 Nov
+check(op.balance(of: jar, before: d(2026, 10, 30)) == 6_000 && op.balance(of: box, before: d(2026, 10, 30)) == 4_000, "gift into a saving, then moved")
+let allowanceAfter = op.allowance(for: me.id, on: d(2026, 10, 25))!.perDay
+check(abs((allowanceAfter - allowanceBefore - Decimal(14_000) / periodDays).double) <= 1,
+      "spending money +20,000 − 6,000 over the period (\(allowanceBefore) → \(allowanceAfter))")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),

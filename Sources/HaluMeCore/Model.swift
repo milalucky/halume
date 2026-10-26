@@ -17,6 +17,12 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var withdrawals: [Withdrawal]
     public var absences: [Absence]
     public var accounts: [Account]
+    /// Money that came outside paydays (gifts, bonuses, refunds), spread into envelopes by the user.
+    public var inflows: [Inflow]
+    /// Unplanned spending taken from the spending money (spending from a saving is a `Withdrawal`).
+    public var outflows: [Outflow]
+    /// Money moved from one saving to another.
+    public var transfers: [Transfer]
     public var wishes: [Wish]
     public var reservations: [Reservation]
     public var projects: [Project]
@@ -35,7 +41,8 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         self.id = id; self.name = name; self.currency = currency; self.country = ""; self.members = members
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
-        self.absences = []; self.accounts = []; self.workCalendar = nil; self.wishes = []; self.reservations = []; self.projects = []
+        self.absences = []; self.accounts = []; self.workCalendar = nil
+        self.inflows = []; self.outflows = []; self.transfers = []; self.wishes = []; self.reservations = []; self.projects = []
         self.rates = [:]; self.ratesUpdated = nil
         self.paydays = paydays; self.checks = checks
     }
@@ -56,6 +63,9 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         withdrawals = try c.decodeIfPresent([Withdrawal].self, forKey: .withdrawals) ?? []
         absences = try c.decodeIfPresent([Absence].self, forKey: .absences) ?? []
         accounts = try c.decodeIfPresent([Account].self, forKey: .accounts) ?? []
+        inflows = try c.decodeIfPresent([Inflow].self, forKey: .inflows) ?? []
+        outflows = try c.decodeIfPresent([Outflow].self, forKey: .outflows) ?? []
+        transfers = try c.decodeIfPresent([Transfer].self, forKey: .transfers) ?? []
         wishes = try c.decodeIfPresent([Wish].self, forKey: .wishes) ?? []
         reservations = try c.decodeIfPresent([Reservation].self, forKey: .reservations) ?? []
         projects = try c.decodeIfPresent([Project].self, forKey: .projects) ?? []
@@ -524,5 +534,50 @@ extension Budget {
         e.interestToCard = account.interestTo != nil
         e.maturity = account.maturity
         return e
+    }
+}
+
+/// Money outside a payday: a gift, a bonus, a refund, something sold, money found.
+public struct Inflow: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var member: UUID
+    public var date: Date
+    /// In `currency` (nil: the budget's); allocations are in the budget's currency.
+    public var amount: Decimal
+    public var currency: String?
+    public var note: String
+    /// What went into envelopes (and debts); the rest is spending money of its period.
+    public var allocations: [Allocation]
+
+    public init(id: UUID = UUID(), member: UUID, date: Date = Date(), amount: Decimal, currency: String? = nil, note: String = "",
+                allocations: [Allocation] = []) {
+        self.id = id; self.member = member; self.date = date; self.amount = amount; self.currency = currency
+        self.note = note; self.allocations = allocations
+    }
+}
+
+/// Unplanned spending paid from the spending money (treatment, a repair, a fine).
+public struct Outflow: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var member: UUID
+    public var date: Date
+    public var amount: Decimal
+    public var currency: String?
+    public var note: String
+
+    public init(id: UUID = UUID(), member: UUID, date: Date = Date(), amount: Decimal, currency: String? = nil, note: String = "") {
+        self.id = id; self.member = member; self.date = date; self.amount = amount; self.currency = currency; self.note = note
+    }
+}
+
+public struct Transfer: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var from: UUID
+    public var to: UUID
+    public var date: Date
+    public var amount: Decimal
+
+    public init(id: UUID = UUID(), from: UUID, to: UUID, date: Date = Date(), amount: Decimal) {
+        self.id = id; self.from = from; self.to = to; self.date = date; self.amount = amount
     }
 }

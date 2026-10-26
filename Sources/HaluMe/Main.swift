@@ -50,6 +50,9 @@ struct MainView: View {
                 case .task(let project, let stage, let task): TaskEditor(projectID: project, stageID: stage, task: task)
                 case .rates(let id): RatesSheet(projectID: id)
                 case .account(let account): AccountEditor(account: account)
+                case .inflow: InflowSheet()
+                case .outflow: OutflowSheet()
+                case .transfer: TransferSheet()
                 }
             }
             .environment(store)
@@ -152,6 +155,8 @@ struct TodayPage: View {
                 let today = Date()
                 // The day's actions, named, not just icons.
                 FlowLayout(spacing: 8) {
+                    Button { store.sheet = .inflow } label: { Label("Money came in", systemImage: "plus.circle") }
+                    Button { store.sheet = .outflow } label: { Label("Unplanned expense", systemImage: "minus.circle") }
                     Button { store.sheet = .timeOff } label: { Label("Vacation, sick leave", systemImage: "calendar.badge.clock") }
                     Button { store.sheet = .balance } label: { Label("Balance on the card", systemImage: "creditcard") }
                     Button { store.sheet = .plan } label: { Label("Edit plan", systemImage: "slider.horizontal.3") }
@@ -167,7 +172,18 @@ struct TodayPage: View {
                         }
                     }
                     PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency, weekly: budget.plansByWeek,
-                             onEditPlan: { store.sheet = .plan }, source: { budget.source(of: $0) }) {
+                             onEditPlan: { store.sheet = .plan }, source: { budget.source(of: $0) },
+                             group: { target in
+                                 if case .envelope(let id) = target, case .project = budget.envelopes.first(where: { $0.id == id })?.goal { return .projects }
+                                 return switch target {
+                                 case .bill: .bills
+                                 case .subscription: .subscriptions
+                                 case .debt: .debts
+                                 case .carry: .kept
+                                 default: .savings
+                                 }
+                             },
+                             outside: outside(budget: budget, me: me, start: start)) {
                         store.toggle($0, payday: start)
                     }
                     ComingUp(planner: planner, today: today)
@@ -189,6 +205,17 @@ struct TodayPage: View {
         case 12..<18: return named ? String(localized: "Good afternoon, \(name)") : String(localized: "Good afternoon")
         default: return named ? String(localized: "Good evening, \(name)") : String(localized: "Good evening")
         }
+    }
+
+    /// Gifts and unplanned spending of the current period, for the plan list.
+    private func outside(budget: Budget, me: UUID, start: Date) -> [(title: String, amount: Decimal)] {
+        let next = store.planner?.next(after: start, of: me) ?? Calendar.current.date(byAdding: .month, value: 1, to: start)!
+        let inPeriod = { (d: Date) in d >= start && d < next }
+        let came = budget.inflows.filter { $0.member == me && inPeriod($0.date) }.map { inflow in
+            (inflow.note, budget.convert(inflow.amount, from: inflow.currency) - inflow.allocations.reduce(0) { $0 + $1.amount })
+        }
+        let went = budget.outflows.filter { $0.member == me && inPeriod($0.date) }.map { ($0.note, -budget.convert($0.amount, from: $0.currency)) }
+        return came + went
     }
 
     private func balanceNote(budget: Budget, me: UUID, start: Date) -> String? {

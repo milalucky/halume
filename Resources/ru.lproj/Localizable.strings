@@ -740,3 +740,37 @@
 "From the pay on day %lld" = "С зарплаты %lld-го";
 "Half from each" = "Пополам с каждой";
 "Take turns, month by month" = "По очереди, помесячно";
+
+/* Money outside the plan */
+"Money came in" = "Пришли деньги";
+"Unplanned expense" = "Непредвиденная трата";
+"Money Came In…" = "Пришли деньги…";
+"Unplanned Expense…" = "Непредвиденная трата…";
+"Put some of it into savings; the rest adds to what you can spend until payday." = "Разложите часть по накоплениям — остальное прибавится к тому, что можно тратить до зарплаты.";
+"Extra money" = "Дополнительные деньги";
+"What is it" = "Что это";
+"e.g. Birthday gift" = "Например, подарок на день рождения";
+"Gift" = "Подарок";
+"Bonus" = "Премия";
+"Refund" = "Возврат";
+"Sold something" = "Продажа вещи";
+"Side job" = "Подработка";
+"Found money" = "Нашлись деньги";
+"Into savings" = "В накопления";
+"%@ goes to spending money" = "%@ — в деньги на жизнь";
+"That's more than came in" = "Это больше, чем пришло";
+"Take it from a saving, or from the spending money — then the amount a day goes down." = "Возьмите из накоплений или из денег на жизнь — тогда сумма в день уменьшится.";
+"e.g. Dentist" = "Например, стоматолог";
+"Treatment" = "Лечение";
+"Repair" = "Ремонт";
+"Fine" = "Штраф";
+"Car" = "Машина";
+"Help someone" = "Помощь близким";
+"Pay from" = "Откуда взять";
+"Spending money" = "Деньги на жизнь";
+"Move between savings" = "Перевести между накоплениями";
+"The money changes envelope; the total stays the same." = "Деньги меняют конверт, общая сумма не меняется.";
+"Move" = "Перевести";
+"Choose" = "Выбрать";
+"To" = "Куда";
+"Kept for later" = "Отложено на потом";

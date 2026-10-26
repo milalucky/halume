@@ -14,6 +14,7 @@ enum Sheet: Identifiable, Hashable {
     case task(project: UUID, stage: UUID, task: ProjectTask)
     case rates(UUID)
     case account(Account)
+    case inflow, outflow, transfer
 
     var id: String {
         switch self {
@@ -30,6 +31,9 @@ enum Sheet: Identifiable, Hashable {
         case .task(_, _, let t): "task-\(t.id)"
         case .rates(let id): "rates-\(id)"
         case .account(let a): "account-\(a.id)"
+        case .inflow: "inflow"
+        case .outflow: "outflow"
+        case .transfer: "transfer"
         }
     }
 
