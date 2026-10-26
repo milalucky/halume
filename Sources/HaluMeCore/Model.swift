@@ -439,6 +439,8 @@ public struct Wish: Codable, Sendable, Hashable, Identifiable {
     public var note: String
     /// The savings envelope collecting money for it.
     public var envelope: UUID?
+    /// A square photo's file name in the budget folder's `images`.
+    public var photo: String?
     /// Got it (bought or received).
     public var isDone: Bool
 

@@ -15,6 +15,7 @@ enum Sheet: Identifiable, Hashable {
     case rates(UUID)
     case account(Account)
     case inflow, outflow, transfer
+    case saveWish(UUID)
 
     var id: String {
         switch self {
@@ -34,6 +35,7 @@ enum Sheet: Identifiable, Hashable {
         case .inflow: "inflow"
         case .outflow: "outflow"
         case .transfer: "transfer"
+        case .saveWish(let id): "save-wish-\(id)"
         }
     }
 
@@ -81,7 +83,7 @@ final class BudgetStore {
     /// `--demo` fills a sample budget in memory and never touches the file.
     let isDemo = CommandLine.arguments.contains("--demo")
 
-    private let url: URL
+    let url: URL
 
     init() {
         // `--data <folder>` keeps a test budget apart from the real one.
@@ -211,12 +213,14 @@ final class BudgetStore {
         budget?.reservations.removeAll { $0.wish == id }
     }
 
-    /// Creates a goal for the wish: its price in six months, first in line after existing savings.
-    func startSaving(for wish: Wish) {
+    /// Where wish photos are kept, next to the budget file.
+    var imagesFolder: URL { url.deletingLastPathComponent().appending(path: "images", directoryHint: .isDirectory) }
+
+    /// Creates a goal for the wish: its price by `date`, first in line after existing savings.
+    func startSaving(for wish: Wish, by date: Date) {
         guard var budget, let me, let i = budget.wishes.firstIndex(where: { $0.id == wish.id }) else { return }
         let envelope = Envelope(owner: .member(me), name: wish.name,
-                                goal: .target(budget.convert(wish.price, from: wish.currency).rounded(.up),
-                                              by: Calendar.current.date(byAdding: .month, value: 6, to: Date())!),
+                                goal: .target(budget.convert(wish.price, from: wish.currency).rounded(.up), by: date),
                                 priority: (budget.envelopes.map(\.priority).max() ?? -1) + 1)
         budget.envelopes.append(envelope)
         budget.wishes[i].envelope = envelope.id

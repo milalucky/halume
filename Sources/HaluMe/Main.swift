@@ -53,6 +53,7 @@ struct MainView: View {
                 case .inflow: InflowSheet()
                 case .outflow: OutflowSheet()
                 case .transfer: TransferSheet()
+                case .saveWish(let id): SaveForWishSheet(wishID: id)
                 }
             }
             .environment(store)

@@ -74,6 +74,7 @@ private struct WishCard: View {
         let saved = envelope.flatMap { e in store.planner?.balance(of: e, before: Calendar.current.date(byAdding: .day, value: 1, to: Date())!) }
         let reserved = budget.reservations.contains { $0.wish == wish.id && $0.by == store.me }
         VStack(alignment: .leading, spacing: 10) {
+            if wish.photo != nil { WishImage(name: wish.photo) }
             HStack(alignment: .top) {
                 Text(wish.name).font(.body.weight(.semibold)).lineLimit(2)
                 Spacer()
@@ -93,7 +94,7 @@ private struct WishCard: View {
             HStack(spacing: 8) {
                 if mine {
                     if envelope == nil, wish.price > 0 {
-                        Button("Save for It") { store.startSaving(for: wish) }.buttonStyle(SecondaryButtonStyle())
+                        Button("Save for It") { store.sheet = .saveWish(wish.id) }.buttonStyle(SecondaryButtonStyle())
                     }
                     Spacer(minLength: 0)
                     IconButton(icon: "checkmark", label: "Got It") { store.markGot(wish) }
@@ -139,6 +140,7 @@ struct WishEditor: View {
                 .frame(width: 200, alignment: .leading)
             }
             Field("What") { BoxTextField("e.g. New phone", text: $wish.name) }
+            WishPhotoField(wish: $wish)
             Field("Price", hint: "Optional") {
                 AmountField(amount: $wish.price, code: $wish.currency, budgetCurrency: store.budget?.currency ?? "USD")
             }

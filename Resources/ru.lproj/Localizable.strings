@@ -774,3 +774,10 @@
 "Choose" = "Выбрать";
 "To" = "Куда";
 "Kept for later" = "Отложено на потом";
+"Choose Photo…" = "Выбрать фото…";
+"Remove Photo" = "Убрать фото";
+"Or drop a picture here. It's cropped to a square." = "Или перетащите картинку сюда. Она обрежется до квадрата.";
+"Save for %@" = "Копить на %@";
+"A goal with its price by the date you choose; part of each pay goes there." = "Цель на эту сумму к выбранной дате; часть каждой зарплаты будет идти туда.";
+"Start Saving" = "Начать копить";
+"About %@ from each of %lld paydays" = "Около %@ с каждой из %lld зарплат";
