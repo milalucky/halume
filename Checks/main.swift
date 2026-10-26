@@ -473,6 +473,32 @@ check((try? JSONDecoder().decode(Budget.self, from: Data(old.utf8)))?.debts.isEm
 let data = try JSONEncoder().encode(budget)
 check(try JSONDecoder().decode(Budget.self, from: data) == budget, "Codable round trip")
 
+// Irregular income: October's earnings (40 000 + 30 000) are November's budget; nothing recorded → the estimate.
+var freelance = Income(member: me.id, name: "Freelance", schedule: .monthly(days: [1]), shift: .none, expected: 50_000)
+freelance.irregular = true
+var freeBudget = Budget(name: "Free", currency: "RUB", members: [me], incomes: [freelance])
+freeBudget.inflows = [Inflow(member: me.id, date: d(2026, 10, 5), amount: 40_000, income: freelance.id),
+                      Inflow(member: me.id, date: d(2026, 10, 20), amount: 30_000, income: freelance.id),
+                      Inflow(member: me.id, date: d(2026, 10, 21), amount: 5_000, note: "Gift")]
+let freeP = Planner(freeBudget, calendar: calendar)
+check(freeP.expected(of: me.id, on: d(2026, 11, 1)) == 70_000, "last month's earnings are this month's pay")
+check(freeP.expected(of: me.id, on: d(2026, 10, 1)) == 50_000, "estimate before anything is recorded")
+check(freeP.adjustment(of: me.id, from: d(2026, 10, 1), to: d(2026, 10, 31)) == 5_000, "earnings aren't spending money now; a gift is")
+
+// Pay ahead: a 120 000 pay (usual 80 000) keeps 30 000 for the next payday.
+var ahead = budget
+ahead.bills = []; ahead.envelopes = []
+var bigPay = Payday(member: me.id, date: d(2026, 10, 23), actual: 120_000, allocations: [])
+bigPay.keep = 30_000
+ahead.paydays = [bigPay]
+let ap = Planner(ahead, calendar: calendar)
+check(ap.plan(for: me.id, on: d(2026, 10, 23)).lines.first { $0.target == .carry }?.amount == 30_000, "the chosen part is kept")
+check(ap.plan(for: me.id, on: d(2026, 11, 10)).carriedIn == 30_000, "and arrives with the next pay")
+bigPay.keep = 90_000
+ahead.paydays = [bigPay]
+check(Planner(ahead, calendar: calendar).plan(for: me.id, on: d(2026, 10, 23)).lines.first { $0.target == .carry }?.amount == 40_000,
+      "never more than the extra")
+
 print(failures == 0 ? "All checks passed" : "\(failures) checks failed")
 exit(failures == 0 ? 0 : 1)
 

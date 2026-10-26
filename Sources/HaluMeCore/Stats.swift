@@ -70,7 +70,7 @@ extension Planner {
             let nextRecord = payday(of: member, on: end)
             return PeriodStats(
                 date: start, expected: expected(of: member, on: start), income: (record.actual ?? expected(of: member, on: start))
-                    + budget.inflows.filter { $0.member == member && day($0.date) >= start && day($0.date) < end }
+                    + budget.inflows.filter { $0.member == member && $0.income == nil && day($0.date) >= start && day($0.date) < end }
                         .reduce(0) { $0 + budget.convert($1.amount, from: $1.currency) },
                 bills: sum(isBill), debtPlanned: sum(isDebt), debtPaid: sum(isDebt, done: true),
                 savingPlanned: sum(isEnvelope), saved: sum(isEnvelope, done: true), withdrawn: withdrawn, interest: interest,

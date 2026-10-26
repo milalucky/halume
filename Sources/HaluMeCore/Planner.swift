@@ -131,6 +131,11 @@ public struct Planner: Sendable {
 
     func grossPay(of income: Income, on date: Date, absences: Bool) -> Decimal {
         let date = day(date)
+        if income.irregular {
+            // Last month's earnings, in the income's currency; the estimate until any are recorded.
+            let earned = earnings(of: income, inMonthOf: calendar.date(byAdding: .month, value: -1, to: date)!)
+            return earned > 0 ? budget.convert(earned, to: income.currency) : income.expected
+        }
         // Working days in [from, to] and how many of them were worked.
         func span(_ from: Date, _ to: Date) -> (worked: Int, all: Int) {
             let all = workdayCount(from, to)
@@ -174,6 +179,13 @@ public struct Planner: Sendable {
             let earned = part(income.expected, wholeMonth)
             return firstHalf ? advance : max(0, earned - advance)
         }
+    }
+
+    /// What an irregular income brought in the calendar month of `date`, in the budget's currency.
+    public func earnings(of income: Income, inMonthOf date: Date) -> Decimal {
+        let (start, end) = monthBounds(date)
+        return budget.inflows.filter { $0.income == income.id && day($0.date) >= start && day($0.date) <= end }
+            .reduce(0) { $0 + budget.convert($1.amount, from: $1.currency) }
     }
 
     func monthBounds(_ date: Date) -> (Date, Date) {
@@ -230,7 +242,9 @@ public struct Planner: Sendable {
             short += max(0, usual(of: member, on: payday) - incoming(of: member, at: payday, next: after))
             payday = after
         }
-        return down(min(excess, short))
+        // The user can also keep the extra of a bigger pay for the next one ("pay ahead").
+        let chosen = min(self.payday(of: member, on: date)?.keep ?? 0, excess)
+        return down(max(min(excess, short), chosen))
     }
 
     /// What the periods before `date` kept for it (passed on until the short payday).
@@ -507,7 +521,10 @@ public struct Planner: Sendable {
         let done = Set(old?.allocations.filter(\.isDone).map(\.target) ?? [])
         let allocations = plan.lines.map { Allocation(target: $0.target, amount: $0.amount, isDone: done.contains($0.target)) }
             + [Allocation(target: .free, amount: plan.free)]
-        return Payday(id: old?.id ?? UUID(), member: plan.member, date: plan.date, actual: actual, allocations: allocations)
+        var record = Payday(id: old?.id ?? UUID(), member: plan.member, date: plan.date, actual: actual, allocations: allocations)
+        record.leftover = old?.leftover
+        record.keep = old?.keep
+        return record
     }
 
     public func payday(of member: UUID, on date: Date) -> Payday? {
@@ -649,7 +666,7 @@ public struct Planner: Sendable {
     /// Spending money a period gained or lost outside its plan: what's left of extra money, minus unplanned spending.
     public func adjustment(of member: UUID, from: Date, to: Date) -> Decimal {
         let inside = { (d: Date) in self.day(d) >= self.day(from) && self.day(d) <= self.day(to) }
-        let gained = budget.inflows.filter { $0.member == member && inside($0.date) }
+        let gained = budget.inflows.filter { $0.member == member && $0.income == nil && inside($0.date) }
             .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) - $1.allocations.reduce(0) { $0 + $1.amount } }
         let spent = budget.outflows.filter { $0.member == member && inside($0.date) }
             .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) }

@@ -142,13 +142,16 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
     public var tax: TaxSetup?
     /// The currency it's paid in; nil: the budget's.
     public var currency: String?
+    /// Freelance or other irregular earnings: what came in during a month (recorded as inflows tied to this income)
+    /// is paid out as the budget on the 1st of the next month; `expected` is a monthly estimate until then.
+    public var irregular: Bool
 
     public init(id: UUID = UUID(), member: UUID, name: String, schedule: Schedule,
                 shift: WeekendShift = .earlier, expected: Decimal, isMonthly: Bool = false, split: PaySplit = .equal,
                 tax: TaxSetup? = nil, currency: String? = nil) {
         self.id = id; self.member = member; self.name = name
         self.schedule = schedule; self.shift = shift; self.expected = expected
-        self.isMonthly = isMonthly; self.split = split; self.tax = tax; self.currency = currency
+        self.isMonthly = isMonthly; self.split = split; self.tax = tax; self.currency = currency; self.irregular = false
     }
 
     public init(from decoder: Decoder) throws {
@@ -163,6 +166,7 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
         split = try c.decodeIfPresent(PaySplit.self, forKey: .split) ?? .equal
         tax = try c.decodeIfPresent(TaxSetup.self, forKey: .tax)
         currency = try c.decodeIfPresent(String.self, forKey: .currency)
+        irregular = try c.decodeIfPresent(Bool.self, forKey: .irregular) ?? false
     }
 }
 
@@ -331,6 +335,8 @@ public struct Payday: Codable, Sendable, Hashable, Identifiable {
     public var allocations: [Allocation]
     /// Money left from the previous pay when this one came, if the user said.
     public var leftover: Decimal?
+    /// Part of a bigger-than-usual pay kept for the next payday.
+    public var keep: Decimal?
 
     public init(id: UUID = UUID(), member: UUID, date: Date, actual: Decimal?, allocations: [Allocation]) {
         self.id = id; self.member = member; self.date = date
@@ -552,11 +558,13 @@ public struct Inflow: Codable, Sendable, Hashable, Identifiable {
     public var note: String
     /// What went into envelopes (and debts); the rest is spending money of its period.
     public var allocations: [Allocation]
+    /// Earnings of an irregular income: they become next month's budget instead of spending money now.
+    public var income: UUID?
 
     public init(id: UUID = UUID(), member: UUID, date: Date = Date(), amount: Decimal, currency: String? = nil, note: String = "",
-                allocations: [Allocation] = []) {
+                allocations: [Allocation] = [], income: UUID? = nil) {
         self.id = id; self.member = member; self.date = date; self.amount = amount; self.currency = currency
-        self.note = note; self.allocations = allocations
+        self.note = note; self.allocations = allocations; self.income = income
     }
 }
 
