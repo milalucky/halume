@@ -215,8 +215,9 @@ struct SubscriptionEditor: View {
                     .labelsHidden()
                 }
             }
+            OwnerFields(owner: $subscription.owner, split: $subscription.split)
             HStack(alignment: .top, spacing: 12) {
-                OwnerFields(owner: $subscription.owner, split: $subscription.split)
+                PaySlotField(slot: $subscription.slot)
                 PayFromField(account: $subscription.payFrom)
             }
             Toggle("Free trial", isOn: $hasTrial)

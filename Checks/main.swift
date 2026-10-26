@@ -385,6 +385,25 @@ bp = Planner(banked, calendar: calendar)
 check(bp.balance(of: cushionIn, before: d(2026, 10, 2)) == 100_000 && bp.nextInterest(of: cushionIn, from: d(2026, 10, 25))?.amount == 1_000,
       "interest paid to a card")
 
+// Which payday pays: rent from the 25th, internet split over both, a shared bill in turns.
+var slotted = budget
+slotted.paydays = []; slotted.envelopes = []; slotted.debts = []; slotted.subscriptions = []
+var rentSlot = Bill(owner: .member(me.id), name: "Rent", amount: 60_000, day: 5)
+rentSlot.slot = .payday(1)
+var netSlot = Bill(owner: .member(me.id), name: "Internet", amount: 1_000, day: 20)
+netSlot.slot = .split
+var cleaning = Bill(owner: .shared, name: "Cleaning", amount: 5_000, day: 12, split: .turns)
+slotted.bills = [rentSlot, netSlot, cleaning]
+let sp = Planner(slotted, calendar: calendar)
+let latePay = sp.plan(for: me.id, on: d(2026, 10, 23)), earlyPay = sp.plan(for: me.id, on: d(2026, 11, 10))
+check(latePay.lines.first { $0.target == .bill(rentSlot.id) }?.amount == 60_000, "rent from the late-month pay")
+check(earlyPay.lines.first { $0.target == .bill(rentSlot.id) } == nil, "not from the other one")
+check(latePay.lines.first { $0.target == .bill(netSlot.id) }?.amount == 500 && earlyPay.lines.first { $0.target == .bill(netSlot.id) }?.amount == 500,
+      "internet split between both paydays")
+let novTurn = sp.share(of: me.id, owner: .shared, split: .turns, on: d(2026, 11, 10))
+let decTurn = sp.share(of: me.id, owner: .shared, split: .turns, on: d(2026, 12, 10))
+check(novTurn + decTurn == 1 && novTurn * decTurn == 0, "taking turns month by month")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),

@@ -735,3 +735,8 @@
 "New account…" = "Новый счёт…";
 "Create Account" = "Создать счёт";
 "Paid from" = "Оплачивается с";
+"From which pay" = "С какой зарплаты";
+"The one before it's due" = "С той, что перед оплатой";
+"From the pay on day %lld" = "С зарплаты %lld-го";
+"Half from each" = "Пополам с каждой";
+"Take turns, month by month" = "По очереди, помесячно";

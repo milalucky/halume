@@ -392,9 +392,10 @@ struct BillsEditor: View {
                         RemoveButton { bills.removeAll { $0.id == bill.id } }
                     }
                     HStack(alignment: .top, spacing: 12) {
-                        OwnerFields(owner: $bill.owner, split: $bill.split)
+                        PaySlotField(slot: $bill.slot)
                         PayFromField(account: $bill.payFrom)
                     }
+                    OwnerFields(owner: $bill.owner, split: $bill.split)
                 }
             }
             .card(padding: 20)

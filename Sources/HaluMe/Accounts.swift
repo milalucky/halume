@@ -238,3 +238,25 @@ struct PayFromField: View {
         }
     }
 }
+
+/// Which payday pays it, when pay comes twice a month: the one before it's due, a chosen one, or half from each.
+struct PaySlotField: View {
+    @Environment(BudgetStore.self) private var store
+    @Binding var slot: PaySlot?
+
+    var body: some View {
+        if let me = store.me, let days = store.planner?.slotDays(of: me)?.days {
+            Field("From which pay") {
+                Picker("From which pay", selection: $slot) {
+                    Text("The one before it's due").tag(PaySlot?.none)
+                    ForEach(Array(days.enumerated()), id: \.offset) { i, day in
+                        Text("From the pay on the \(day)th").tag(PaySlot?.some(.payday(i)))
+                    }
+                    Text("Half from each").tag(PaySlot?.some(.split))
+                }
+                .labelsHidden()
+            }
+            .frame(width: 240, alignment: .leading)
+        }
+    }
+}

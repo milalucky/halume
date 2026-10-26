@@ -3,7 +3,7 @@
 import re, sys, pathlib
 
 INTS = {"days", "months", "drop", "passed", "total", "done", "plan.lines.count", "allowance.daysLeft",
-        "current + 1", "count", "active.count", "i + 1", "project.tasks.count", "stage.tasks.count"}
+        "current + 1", "count", "active.count", "i + 1", "project.tasks.count", "stage.tasks.count", "day"}
 ICON = re.compile(r"^[a-z0-9]+(\.[a-z0-9]+)+$")
 
 def literals(src):

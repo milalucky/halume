@@ -74,6 +74,7 @@ struct OwnerFields: View {
                         Picker("Split", selection: $split) {
                             Text("Equally").tag(Split.equal)
                             Text("By income").tag(Split.byIncome)
+                            Text("Take turns, month by month").tag(Split.turns)
                             Text("I pay").tag(Split.payer(me))
                             ForEach(store.partners) { Text("\($0.name) pays").tag(Split.payer($0.id)) }
                         }

@@ -86,6 +86,14 @@ public enum Split: Codable, Sendable, Hashable {
     case payer(UUID)
     /// Any weights (percentages or amounts), normalised.
     case weights([UUID: Decimal])
+    /// Members take turns month by month, in the budget's order.
+    case turns
+}
+
+/// Which of the month's paydays pays a bill: one of them (by order in the month) or half from each.
+public enum PaySlot: Codable, Sendable, Hashable {
+    case payday(Int)
+    case split
 }
 
 public enum Schedule: Codable, Sendable, Hashable {
@@ -157,6 +165,8 @@ public struct Bill: Codable, Sendable, Hashable, Identifiable {
     /// nil: the budget's currency.
     public var currency: String?
     public var day: Int
+    /// Which payday pays it; nil: the one before it's due.
+    public var slot: PaySlot?
     /// The account it's paid from.
     public var payFrom: UUID?
     public var split: Split
@@ -357,6 +367,8 @@ public struct Debt: Codable, Sendable, Hashable, Identifiable {
     /// The debt's currency (balance and payment); nil: the budget's.
     public var currency: String?
     public var day: Int
+    /// Which payday pays it; nil: the one before it's due.
+    public var slot: PaySlot?
     /// The account it's paid from.
     public var payFrom: UUID?
     public var split: Split
@@ -390,6 +402,8 @@ public struct Subscription: Codable, Sendable, Hashable, Identifiable {
     public var isActive: Bool
     public var category: String
     public var note: String
+    /// Which payday pays it; nil: the one before it's due.
+    public var slot: PaySlot?
     /// The account it's paid from.
     public var payFrom: UUID?
     public var split: Split

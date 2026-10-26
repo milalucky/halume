@@ -313,6 +313,9 @@ public struct Planner: Sendable {
             return 1 / Decimal(all.count)
         case .payer(let id):
             return id == member ? 1 : 0
+        case .turns:
+            let c = calendar.dateComponents([.year, .month], from: date)
+            return all[(c.year! * 12 + c.month!) % all.count] == member ? 1 : 0
         case .weights(let weights):
             let total = weights.values.reduce(0, +)
             return total > 0 ? (weights[member] ?? 0) / total : 1 / Decimal(all.count)
@@ -390,24 +393,32 @@ public struct Planner: Sendable {
         // Bills, debt payments and subscription charges due before the next payday, earliest first.
         let last = add(-1, to: next)!
         var due: [(target: Target, name: String, date: Date, amount: Decimal)] = []
+        // A wide window: a bill can be paid from a payday chosen ahead of or after its due day.
+        let wideFrom = add(-45, to: date)!, wideTo = add(45, to: last)!
         for bill in budget.bills {
             let s = share(of: member, owner: bill.owner, split: bill.split, on: date)
             guard s > 0 else { continue }
-            due += monthDays([bill.day], from: date, to: last).map { (.bill(bill.id), bill.name, $0, up(budget.convert(bill.amount, from: bill.currency) * s)) }
+            let amount = budget.convert(bill.amount, from: bill.currency) * s
+            due += placed(monthDays([bill.day], from: wideFrom, to: wideTo), slot: bill.slot, member: member, period: date, last: last)
+                .map { (.bill(bill.id), bill.name, $0.date, up(amount * $0.part)) }
         }
         for debt in budget.debts {
             let s = share(of: member, owner: debt.owner, split: debt.split, on: date)
             let left = remaining(of: debt, before: date)
             guard s > 0, left > 0 else { continue }
-            due += monthDays([debt.day], from: date, to: last).prefix(1)
-                .map { (.debt(debt.id), debt.name, $0, up(budget.convert(min(debt.payment, left), from: debt.currency) * s)) }
+            let amount = budget.convert(min(debt.payment, left), from: debt.currency) * s
+            let parts = placed(monthDays([debt.day], from: wideFrom, to: wideTo), slot: debt.slot, member: member, period: date, last: last)
+            if let first = parts.first {
+                due.append((.debt(debt.id), debt.name, first.date, up(amount * parts.reduce(0) { $0 + $1.part })))
+            }
         }
         for sub in budget.subscriptions {
             let s = share(of: member, owner: sub.owner, split: sub.split, on: date)
             guard s > 0 else { continue }
-            let dates = charges(of: sub, from: date, to: last)
-            if let first = dates.first {
-                due.append((.subscription(sub.id), sub.name, first, up(budget.convert(sub.amount, from: sub.currency) * Decimal(dates.count) * s)))
+            let parts = placed(charges(of: sub, from: wideFrom, to: wideTo), slot: sub.slot, member: member, period: date, last: last)
+            if let first = parts.first {
+                due.append((.subscription(sub.id), sub.name, first.date,
+                            up(budget.convert(sub.amount, from: sub.currency) * parts.reduce(0) { $0 + $1.part } * s)))
             }
         }
         for item in due.sorted(by: { $0.date < $1.date }) {
@@ -466,6 +477,36 @@ public struct Planner: Sendable {
 
     public func payday(of member: UUID, on date: Date) -> Payday? {
         budget.paydays.first { $0.member == member && day($0.date) == day(date) }
+    }
+
+    // MARK: Which payday pays
+
+    /// The days of the month a member is paid on, when there are several (a two-payday salary).
+    public func slotDays(of member: UUID) -> (days: [Int], shift: WeekendShift)? {
+        for income in budget.incomes where income.member == member {
+            if case .monthly(let days) = income.schedule, days.count >= 2 { return (days.sorted(), income.shift) }
+        }
+        return nil
+    }
+
+    /// Of these due dates, the ones this period pays and how much of each (half when split between paydays).
+    func placed(_ dues: [Date], slot: PaySlot?, member: UUID, period: Date, last: Date) -> [(date: Date, part: Decimal)] {
+        guard let slot, let paid = slotDays(of: member) else {
+            return dues.filter { $0 >= period && $0 <= last }.map { ($0, 1) }
+        }
+        let picks: [(Int, Decimal)] = switch slot {
+        case .payday(let k): [(paid.days[min(max(k, 0), paid.days.count - 1)], 1)]
+        case .split: paid.days.map { ($0, 1 / Decimal(paid.days.count)) }
+        }
+        var out: [(Date, Decimal)] = []
+        for due in dues {
+            let (start, end) = monthBounds(due)
+            for (dayOfMonth, part) in picks {
+                guard let nominal = monthDays([dayOfMonth], from: start, to: end).first else { continue }
+                if shifted(nominal, paid.shift) == period { out.append((period, part)) }
+            }
+        }
+        return out
     }
 
     // MARK: Debts

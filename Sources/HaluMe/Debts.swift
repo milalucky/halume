@@ -198,8 +198,9 @@ struct DebtEditor: View {
                    action: LocalizedStringKey(isNew ? "Add" : "Save"),
                    canSave: !debt.name.trimmingCharacters(in: .whitespaces).isEmpty && left > 0 && debt.payment > 0,
                    save: save) {
+            OwnerFields(owner: $debt.owner, split: $debt.split)
             HStack(alignment: .top, spacing: 12) {
-                OwnerFields(owner: $debt.owner, split: $debt.split)
+                PaySlotField(slot: $debt.slot)
                 PayFromField(account: $debt.payFrom)
             }
             Field("What kind") {
