@@ -50,6 +50,8 @@ One model for a single person, a fully shared or a partly shared budget. Every i
 
 ## Next
 
+- Current work list: `docs/feedback-2026-10-27.md` (the user's test feedback, with status).
+
 - CloudKit sync and partner sharing → iPhone app + widget → Watch → Halu notch glance.
 - Irregular income ("live on last month's money" buffer).
 - Debts paid every two weeks (Split's default schedule); now monthly only.

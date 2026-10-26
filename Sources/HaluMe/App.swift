@@ -7,6 +7,7 @@ struct HaluMeApp: App {
 
     init() {
         // Design checks: `--demo --light` / `--demo --dark`, set before any window draws.
+        Appearance.apply(UserDefaults.standard.string(forKey: Appearance.key) ?? "")
         let args = CommandLine.arguments
         if args.contains("--demo"), args.contains("--light") { NSApplication.shared.appearance = NSAppearance(named: .aqua) }
         if args.contains("--demo"), args.contains("--dark") { NSApplication.shared.appearance = NSAppearance(named: .darkAqua) }

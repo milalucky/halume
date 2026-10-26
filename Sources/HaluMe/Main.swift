@@ -31,6 +31,7 @@ struct MainView: View {
                 }
             }
             .backdrop()
+            .id(store.look)
         }
         .sheet(item: $store.sheet) { sheet in
             Group {
@@ -142,13 +143,18 @@ struct TodayPage: View {
     @Environment(BudgetStore.self) private var store
 
     var body: some View {
-        Page(title: "Today") {
-            IconButton(icon: "airplane", label: "Vacation and sick leave") { store.sheet = .timeOff }
-            IconButton(icon: "creditcard", label: "Check balance") { store.sheet = .balance }
-            IconButton(icon: "slider.horizontal.3", label: "Edit plan") { store.sheet = .plan }
+        Page(title: LocalizedStringKey(greeting)) {
+            EmptyView()
         } content: {
             if let budget = store.budget, let me = store.me, let planner = store.planner {
                 let today = Date()
+                // The day's actions, named, not just icons.
+                FlowLayout(spacing: 8) {
+                    Button { store.sheet = .timeOff } label: { Label("Vacation, sick leave", systemImage: "calendar.badge.clock") }
+                    Button { store.sheet = .balance } label: { Label("Balance on the card", systemImage: "creditcard") }
+                    Button { store.sheet = .plan } label: { Label("Edit plan", systemImage: "slider.horizontal.3") }
+                }
+                .buttonStyle(SecondaryButtonStyle())
                 if let allowance = planner.allowance(for: me, on: today), let start = planner.current(on: today, of: me) {
                     let record = planner.payday(of: me, on: start)
                     Hero(allowance: allowance, start: start, currency: budget.currency,
@@ -158,7 +164,8 @@ struct TodayPage: View {
                             store.sheet = .pay
                         }
                     }
-                    PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency, weekly: budget.plansByWeek) {
+                    PlanList(plan: planner.plan(for: me, on: start), record: record, currency: budget.currency, weekly: budget.plansByWeek,
+                             onEditPlan: { store.sheet = .plan }) {
                         store.toggle($0, payday: start)
                     }
                     ComingUp(planner: planner, today: today)
@@ -167,6 +174,18 @@ struct TodayPage: View {
                     Text("Your first payday hasn't come yet.").foregroundStyle(.secondary).card()
                 }
             }
+        }
+    }
+
+    /// "Good evening, Milana".
+    private var greeting: String {
+        let name = store.budget?.members.first { $0.id == store.me }?.name ?? ""
+        let hour = Calendar.current.component(.hour, from: Date())
+        let named = !name.isEmpty && name != String(localized: "Me")
+        switch hour {
+        case 5..<12: return named ? String(localized: "Good morning, \(name)") : String(localized: "Good morning")
+        case 12..<18: return named ? String(localized: "Good afternoon, \(name)") : String(localized: "Good afternoon")
+        default: return named ? String(localized: "Good evening, \(name)") : String(localized: "Good evening")
         }
     }
 

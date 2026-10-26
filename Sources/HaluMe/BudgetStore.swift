@@ -69,6 +69,8 @@ final class BudgetStore {
     /// The project shown in Projects, if one is open.
     var openProject: UUID?
     var confirmingStartOver = false
+    /// Bumped when display settings change so the windows redraw.
+    var look = 0
 
     /// `--demo` fills a sample budget in memory and never touches the file.
     let isDemo = CommandLine.arguments.contains("--demo")

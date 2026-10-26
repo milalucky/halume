@@ -173,7 +173,7 @@
 "Deposit" = "Вклад";
 "Investments" = "Инвестиции";
 "Kept" = "Где лежат";
-"Rate, % a year" = "Ставка, % годовых";
+"Rate, % a year" = "Ставка, %";
 "Paid on day" = "День выплаты";
 "Ends" = "До";
 "Interest is paid to my card" = "Проценты приходят на карту";
@@ -603,3 +603,22 @@
 "Due" = "Срок";
 "Start" = "Начало";
 "End" = "Конец";
+
+/* Polish */
+"Vacation, sick leave" = "Отпуск, больничный";
+"Balance on the card" = "Остаток на карте";
+"Good morning, %@" = "Доброе утро, %@";
+"Good afternoon, %@" = "Добрый день, %@";
+"Good evening, %@" = "Добрый вечер, %@";
+"Good morning" = "Доброе утро";
+"Good afternoon" = "Добрый день";
+"Good evening" = "Добрый вечер";
+"This pay doesn't cover the whole plan: %@ short. Goals with a date catch up from the next pays, or lower some savings." = "Этой зарплаты не хватает на весь план: не хватает %@. Цели с датой догонят со следующих зарплат, или уменьшите часть накоплений.";
+"Lower Savings…" = "Уменьшить накопления…";
+"Theme" = "Тема";
+"As the system" = "Как в системе";
+"Light" = "Светлая";
+"Dark" = "Тёмная";
+"Thousands" = "Разделитель тысяч";
+"Look" = "Оформление";
+"Done" = "Готово";

@@ -92,7 +92,7 @@ struct PlanEditor: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Your plan").font(.title2.weight(.semibold))
                 Picker("Section", selection: $section) {
-                    ForEach(Section.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(Section.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()

@@ -7,9 +7,31 @@ enum Palette {
     static let red = Color(red: 0.90, green: 0.33, blue: 0.33)
 }
 
+/// How thousands are separated: 1 000 000, 1.000.000 or 1,000,000 (Settings → Numbers).
+enum NumberStyle: String, CaseIterable, Identifiable {
+    case space, dot, comma
+    var id: Self { self }
+    static let key = "numberStyle"
+
+    static var current: NumberStyle {
+        UserDefaults.standard.string(forKey: key).flatMap(NumberStyle.init(rawValue:))
+            ?? (AppLanguage.current == .russian ? .space : .comma)
+    }
+
+    var locale: Locale {
+        switch self {
+        case .space: Locale(identifier: "ru_RU")
+        case .dot: Locale(identifier: "de_DE")
+        case .comma: Locale(identifier: "en_US")
+        }
+    }
+
+    var sample: String { Decimal(1_234_567).formatted(.number.locale(locale)) }
+}
+
 extension Decimal {
     func money(_ currency: String) -> String {
-        formatted(.currency(code: currency).presentation(.narrow).precision(.fractionLength(0)))
+        formatted(.currency(code: currency).presentation(.narrow).precision(.fractionLength(0)).locale(NumberStyle.current.locale))
     }
 
     var double: Double { NSDecimalNumber(decimal: self).doubleValue }
@@ -156,7 +178,7 @@ struct Field<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+            Text(label).font(.subheadline.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
             content.controlSize(.large)
             if let hint { Text(hint).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
@@ -268,7 +290,7 @@ private struct NumberText: View {
 
     static func display(_ value: Decimal?) -> String {
         guard let value, value != 0 else { return "" }
-        return value.formatted(.number.precision(.fractionLength(0...2)))
+        return value.formatted(.number.precision(.fractionLength(0...2)).locale(NumberStyle.current.locale))
     }
 }
 

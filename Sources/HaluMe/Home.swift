@@ -78,6 +78,7 @@ struct PlanList: View {
     let record: Payday?
     let currency: String
     var weekly = false
+    var onEditPlan: (() -> Void)?
     /// nil shows the list read-only.
     let toggle: ((Target) -> Void)?
 
@@ -125,11 +126,16 @@ struct PlanList: View {
             .padding(.vertical, 12)
 
             if plan.shortfall > 0 {
-                Label("Short by \(plan.shortfall.money(currency)) this time. Goals with a date catch up from the next pays.",
-                      systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout)
-                    .foregroundStyle(Palette.red)
-                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("This pay doesn't cover the whole plan: \(plan.shortfall.money(currency)) short. Goals with a date catch up from the next pays, or lower some savings.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(Palette.red)
+                    if let onEditPlan {
+                        Button("Lower Savings…", action: onEditPlan).buttonStyle(SecondaryButtonStyle())
+                    }
+                }
+                .padding(.top, 2)
             }
         }
         .card(padding: 20)

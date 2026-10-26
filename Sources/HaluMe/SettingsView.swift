@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// HaluMe → Settings… (⌘,).
@@ -7,6 +8,8 @@ struct SettingsView: View {
     @AppStorage(Reminders.billsKey) private var bills = false
     @AppStorage(Reminders.subscriptionsKey) private var subscriptions = false
     @State private var denied = false
+    @AppStorage(Appearance.key) private var theme = ""
+    @AppStorage(NumberStyle.key) private var numbers = NumberStyle.current.rawValue
 
     var body: some View {
         Form {
@@ -29,6 +32,20 @@ struct SettingsView: View {
                 Text("Reminders")
             }
             SwiftUI.Section {
+                Picker("Theme", selection: $theme) {
+                    Text("As the system").tag("")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .onChange(of: theme) { _, value in Appearance.apply(value) }
+                Picker("Thousands", selection: $numbers) {
+                    ForEach(NumberStyle.allCases) { Text($0.sample).tag($0.rawValue) }
+                }
+                .onChange(of: numbers) { store.look += 1 }
+            } header: {
+                Text("Look")
+            }
+            SwiftUI.Section {
                 Picker("Language", selection: Binding(get: { AppLanguage.current }, set: { AppLanguage.switchTo($0) })) {
                     ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
                 }
@@ -49,6 +66,15 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Spacer()
+                Button("Done") { NSApp.keyWindow?.performClose(nil) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(16)
+        }
         .frame(width: 460)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: [payday, bills, subscriptions]) { store.syncReminders() }
@@ -65,6 +91,20 @@ struct SettingsView: View {
                 denied = !granted
                 binding.wrappedValue = granted
             }
+        }
+    }
+}
+
+/// Light, dark or as the system, remembered between launches.
+enum Appearance {
+    static let key = "appearance"
+
+    @MainActor
+    static func apply(_ value: String) {
+        NSApplication.shared.appearance = switch value {
+        case "light": NSAppearance(named: .aqua)
+        case "dark": NSAppearance(named: .darkAqua)
+        default: nil
         }
     }
 }
