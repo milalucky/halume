@@ -34,7 +34,7 @@ struct SubscriptionsPage: View {
                             HStack {
                                 Text("Cancelled").font(.headline)
                                 Spacer()
-                                Text("Saving \(cancelled.reduce(Decimal(0)) { $0 + Planner.monthlyCost(of: $1) }.money(budget.currency)) a month")
+                                Text("Saving \(cancelled.reduce(Decimal(0)) { $0 + budget.convert(Planner.monthlyCost(of: $1), from: $1.currency) }.money(budget.currency)) a month")
                                     .font(.callout).foregroundStyle(Palette.green)
                             }
                             VStack(spacing: 0) {
@@ -59,7 +59,7 @@ private struct Totals: View {
 
     var body: some View {
         let budget = planner.budget
-        let monthly = active.reduce(Decimal(0)) { $0 + Planner.monthlyCost(of: $1) }
+        let monthly = active.reduce(Decimal(0)) { $0 + budget.convert(Planner.monthlyCost(of: $1), from: $1.currency) }
         let yearly = monthly * 12
         VStack(alignment: .leading, spacing: 14) {
             StatRow {
@@ -114,8 +114,13 @@ private struct SubscriptionRow: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(sub.amount.money(currency)).monospacedDigit().foregroundStyle(sub.isActive ? .primary : .secondary)
-                    Text(sub.cycle.per).font(.caption).foregroundStyle(.secondary)
+                    Text(sub.amount.money(sub.currency ?? currency)).monospacedDigit().foregroundStyle(sub.isActive ? .primary : .secondary)
+                    if let code = sub.currency, code != currency {
+                        Text("≈ \(planner.budget.convert(sub.amount, from: code).rounded().money(currency)) \(Text(sub.cycle.per))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text(sub.cycle.per).font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
             .padding(.vertical, 8)
@@ -190,7 +195,7 @@ struct SubscriptionEditor: View {
                 }
             }
             HStack(alignment: .top, spacing: 12) {
-                Field("Price") { AmountField(amount: $subscription.amount, currency: currency) }
+                Field("Price") { AmountField(amount: $subscription.amount, code: $subscription.currency, budgetCurrency: currency) }
                 Field("Billed") {
                     Picker("Billed", selection: $subscription.cycle) {
                         ForEach(Cycle.allCases, id: \.self) { Text($0.title).tag($0) }

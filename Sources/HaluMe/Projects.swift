@@ -372,8 +372,7 @@ struct TaskEditor: View {
                 }
             }
             HStack(alignment: .top, spacing: 12) {
-                Field("Cost") { AmountField(amount: $task.cost, currency: currency.wrappedValue) }
-                Field("Currency") { CurrencyField(code: currency) }.frame(width: 200, alignment: .leading)
+                Field("Cost") { AmountField(amount: $task.cost, code: $task.currency, budgetCurrency: budget.currency) }
             }
             if task.isDone {
                 Field("Actually spent", hint: "Leave empty if it cost as planned") {
@@ -432,11 +431,7 @@ struct RatesSheet: View {
         let project = budget.projects.first { $0.id == projectID }!
         let codes = Set(project.tasks.compactMap(\.currency)).subtracting([budget.currency]).sorted()
         SheetFrame(title: "Exchange rates", subtitle: "Costs in other currencies count in \(budget.currency) at these rates.",
-                   action: "Save", save: {
-                       var changed = project
-                       changed.rates = rates
-                       store.save(changed)
-                   }) {
+                   action: "Save", save: { store.setRates(budget.rates.merging(rates) { $1 }) }) {
             ForEach(codes, id: \.self) { code in
                 Field("1 \(code) =") {
                     AmountField(optional: Binding(get: { rates[code] }, set: { rates[code] = $0 }), currency: budget.currency, placeholder: "Rate")
@@ -448,7 +443,7 @@ struct RatesSheet: View {
                 if failed { Text("Couldn't load the rates.").font(.caption).foregroundStyle(Palette.red) }
             }
         }
-        .onAppear { rates = project.rates }
+        .onAppear { rates = budget.rates.merging(project.rates) { current, _ in current } }
     }
 
     private func update(_ codes: [String], to base: String) {

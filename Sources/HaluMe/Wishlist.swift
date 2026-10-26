@@ -30,7 +30,7 @@ struct WishlistPage: View {
                                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Palette.green)
                                     Text(wish.name)
                                     Spacer()
-                                    Text(wish.price.money(budget.currency)).foregroundStyle(.secondary).monospacedDigit()
+                                    Text(wish.price.money(wish.currency ?? budget.currency)).foregroundStyle(.secondary).monospacedDigit()
                                 }
                                 .contextMenu { Button("Delete", role: .destructive) { store.deleteWish(wish.id) } }
                             }
@@ -82,12 +82,12 @@ private struct WishCard: View {
                 }
             }
             if wish.price > 0 {
-                Text(wish.price.money(budget.currency))
+                Text(wish.price.money(wish.currency ?? budget.currency))
                     .font(.system(size: 24, weight: .medium, design: .rounded)).monospacedDigit()
             }
             if !wish.note.isEmpty { Text(wish.note).font(.callout).foregroundStyle(.secondary).lineLimit(3) }
             if let saved, wish.price > 0 {
-                Bar(value: (saved / wish.price).double)
+                Bar(value: (saved / max(budget.convert(wish.price, from: wish.currency), 1)).double)
                 Text("\(saved.money(budget.currency)) saved").font(.caption).foregroundStyle(.secondary)
             }
             HStack(spacing: 8) {
@@ -139,7 +139,9 @@ struct WishEditor: View {
                 .frame(width: 200, alignment: .leading)
             }
             Field("What") { BoxTextField("e.g. New phone", text: $wish.name) }
-            Field("Price", hint: "Optional") { AmountField(amount: $wish.price, currency: store.budget?.currency ?? "USD") }
+            Field("Price", hint: "Optional") {
+                AmountField(amount: $wish.price, code: $wish.currency, budgetCurrency: store.budget?.currency ?? "USD")
+            }
             Field("Link", hint: "Optional") { BoxTextField("https://", text: $wish.link) }
             Field("Note", hint: "Colour, size, where to buy") { BoxTextField("Optional", text: $wish.note) }
             if !isNew {

@@ -32,6 +32,7 @@ struct MainView: View {
             }
             .backdrop()
             .id(store.look)
+            .task(id: store.budget?.foreignCurrencies) { await store.refreshRates() }
         }
         .sheet(item: $store.sheet) { sheet in
             Group {
@@ -279,7 +280,7 @@ private struct ComingUp: View {
                                     .foregroundStyle(sub.trialEnds != nil ? AnyShapeStyle(Palette.orange) : AnyShapeStyle(.secondary))
                             }
                             Spacer()
-                            Text(sub.amount.money(budget.currency)).monospacedDigit()
+                            Text(sub.amount.money(sub.currency ?? budget.currency)).monospacedDigit()
                         }
                         .padding(.vertical, 8)
                     }

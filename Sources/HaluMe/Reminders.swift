@@ -47,7 +47,7 @@ enum Reminders {
             for debt in budget.debts where planner.remaining(of: debt, before: today) > 0 {
                 for date in planner.dueDates(day: debt.day, from: today, to: horizon) {
                     items.append(("halume.debt.\(debt.id).\(date.timeIntervalSince1970)", at(dayBefore(date), hour: 18),
-                                  debt.name, String(localized: "Payment due tomorrow: \(debt.payment.money(budget.currency))")))
+                                  debt.name, String(localized: "Payment due tomorrow: \(debt.payment.money(debt.currency ?? budget.currency))")))
                 }
             }
         }
@@ -60,7 +60,7 @@ enum Reminders {
                 }
                 for date in planner.charges(of: sub, from: today, to: horizon) where date != sub.trialEnds.map(calendar.startOfDay) {
                     items.append(("halume.sub.\(sub.id).\(date.timeIntervalSince1970)", at(dayBefore(date), hour: 18), sub.name,
-                                  String(localized: "Charge tomorrow: \(sub.amount.money(budget.currency))")))
+                                  String(localized: "Charge tomorrow: \(sub.amount.money(sub.currency ?? budget.currency))")))
                 }
             }
         }

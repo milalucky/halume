@@ -216,10 +216,20 @@ struct AmountField: View {
     @Binding var amount: Decimal?
     let currency: String
     var placeholder: LocalizedStringKey = "0"
+    /// When set, the symbol is a button to pick another currency (nil means the budget's).
+    var choice: Binding<String?>?
 
     init(amount: Binding<Decimal>, currency: String) {
         _amount = Binding(get: { amount.wrappedValue }, set: { amount.wrappedValue = $0 ?? 0 })
         self.currency = currency
+    }
+
+    /// An amount in any currency: `code` nil stands for `budgetCurrency`.
+    init(amount: Binding<Decimal>, code: Binding<String?>, budgetCurrency: String) {
+        _amount = Binding(get: { amount.wrappedValue }, set: { amount.wrappedValue = $0 ?? 0 })
+        currency = code.wrappedValue ?? budgetCurrency
+        choice = Binding(get: { code.wrappedValue ?? budgetCurrency },
+                         set: { code.wrappedValue = $0 == budgetCurrency ? nil : $0 })
     }
 
     /// An optional amount: empty means "not said".
@@ -230,7 +240,8 @@ struct AmountField: View {
     }
 
     var body: some View {
-        NumberText(value: $amount, placeholder: placeholder, suffix: Self.symbol(currency))
+        NumberText(value: $amount, placeholder: placeholder, suffix: Self.symbol(currency),
+                   currency: choice.map { c in Binding(get: { c.wrappedValue ?? currency }, set: { c.wrappedValue = $0 }) })
     }
 
     /// "₽", "$", "€": the narrow symbol for the code.
@@ -246,7 +257,7 @@ struct PercentField: View {
     @Binding var value: Decimal
 
     var body: some View {
-        NumberText(value: Binding(get: { value }, set: { value = $0 ?? 0 }), placeholder: "0", suffix: "%")
+        NumberText(value: Binding(get: { value }, set: { value = $0 ?? 0 }), placeholder: "0", suffix: "%", currency: nil)
     }
 }
 
@@ -255,7 +266,9 @@ private struct NumberText: View {
     @Binding var value: Decimal?
     let placeholder: LocalizedStringKey
     let suffix: String
+    var currency: Binding<String>?
     @State private var text = ""
+    @State private var picking = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -264,7 +277,23 @@ private struct NumberText: View {
                 .textFieldStyle(.plain)
                 .focused($focused)
                 .monospacedDigit()
-            Text(suffix).foregroundStyle(.secondary)
+            if let currency {
+                Button { picking.toggle() } label: {
+                    HStack(spacing: 3) {
+                        Text(currency.wrappedValue == suffix ? suffix : AmountField.symbol(currency.wrappedValue))
+                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+                    }
+                    .foregroundStyle(Palette.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Palette.orange.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .help(Text("Currency"))
+                .popover(isPresented: $picking, arrowEdge: .bottom) { CurrencyList(code: currency, open: $picking) }
+            } else {
+                Text(suffix).foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
@@ -415,10 +444,6 @@ struct DateField: View {
 struct CurrencyField: View {
     @Binding var code: String
     @State private var open = false
-    @State private var query = ""
-
-    private static let popular = ["RUB", "USD", "EUR", "KZT", "BYN", "UAH", "GEL", "AMD", "UZS", "KGS", "AZN", "TRY",
-                                  "GBP", "CNY", "AED", "THB", "RSD", "ILS", "PLN", "CHF", "JPY", "INR", "CAD", "AUD"]
 
     var body: some View {
         Button { open.toggle() } label: {
@@ -436,26 +461,46 @@ struct CurrencyField: View {
         .buttonStyle(.plain)
         .accessibilityValue(Text(Self.title(code)))
         .popover(isPresented: $open, arrowEdge: .bottom) {
-            VStack(spacing: 8) {
-                BoxTextField("Search currency", text: $query)
-                List(matches, id: \.self) { item in
-                    Button { code = item; open = false; query = "" } label: {
-                        HStack {
-                            Text(item).monospaced().foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
-                            Text(Self.name(item))
-                            Spacer()
-                            Text(AmountField.symbol(item)).foregroundStyle(.secondary)
-                            if item == code { Image(systemName: "checkmark").foregroundStyle(Palette.orange) }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .listStyle(.plain)
-            }
-            .padding(12)
-            .frame(width: 340, height: 380)
+            CurrencyList(code: $code, open: $open)
         }
+    }
+
+    static func name(_ code: String) -> String {
+        Locale.current.localizedString(forCurrencyCode: code) ?? code
+    }
+
+    static func title(_ code: String) -> String { "\(code) — \(name(code))" }
+}
+
+/// The searchable list behind currency pickers: popular ones first.
+struct CurrencyList: View {
+    @Binding var code: String
+    @Binding var open: Bool
+    @State private var query = ""
+
+    private static let popular = ["RUB", "USD", "EUR", "KZT", "CAD", "BYN", "UAH", "GEL", "AMD", "UZS", "KGS", "AZN", "TRY",
+                                  "GBP", "CNY", "AED", "THB", "RSD", "ILS", "PLN", "CHF", "JPY", "INR", "AUD"]
+
+    var body: some View {
+        VStack(spacing: 8) {
+            BoxTextField("Search currency", text: $query)
+            List(matches, id: \.self) { item in
+                Button { code = item; open = false; query = "" } label: {
+                    HStack {
+                        Text(item).monospaced().foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
+                        Text(CurrencyField.name(item))
+                        Spacer()
+                        Text(AmountField.symbol(item)).foregroundStyle(.secondary)
+                        if item == code { Image(systemName: "checkmark").foregroundStyle(Palette.orange) }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .listStyle(.plain)
+        }
+        .padding(12)
+        .frame(width: 340, height: 380)
     }
 
     private var matches: [String] {
@@ -467,14 +512,8 @@ struct CurrencyField: View {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return unique }
         return unique.filter { c in
-            c.lowercased().contains(q) || Self.name(c).lowercased().contains(q)
+            c.lowercased().contains(q) || CurrencyField.name(c).lowercased().contains(q)
                 || (Locale(identifier: "en").localizedString(forCurrencyCode: c) ?? "").lowercased().contains(q)
         }
     }
-
-    static func name(_ code: String) -> String {
-        Locale.current.localizedString(forCurrencyCode: code) ?? code
-    }
-
-    static func title(_ code: String) -> String { "\(code) — \(name(code))" }
 }

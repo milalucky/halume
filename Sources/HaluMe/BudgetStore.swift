@@ -209,7 +209,8 @@ final class BudgetStore {
     func startSaving(for wish: Wish) {
         guard var budget, let me, let i = budget.wishes.firstIndex(where: { $0.id == wish.id }) else { return }
         let envelope = Envelope(owner: .member(me), name: wish.name,
-                                goal: .target(wish.price, by: Calendar.current.date(byAdding: .month, value: 6, to: Date())!),
+                                goal: .target(budget.convert(wish.price, from: wish.currency).rounded(.up),
+                                              by: Calendar.current.date(byAdding: .month, value: 6, to: Date())!),
                                 priority: (budget.envelopes.map(\.priority).max() ?? -1) + 1)
         budget.envelopes.append(envelope)
         budget.wishes[i].envelope = envelope.id

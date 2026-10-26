@@ -384,7 +384,7 @@ struct BillsEditor: View {
                 ForEach($bills) { $bill in
                     HStack(alignment: .bottom, spacing: 12) {
                         Field("Bill") { BoxTextField("Name", text: $bill.name) }
-                        Field("Amount") { AmountField(amount: $bill.amount, currency: currency) }
+                        Field("Amount") { AmountField(amount: $bill.amount, code: $bill.currency, budgetCurrency: currency) }
                             .frame(width: 130, alignment: .leading)
                         Field("Due day") { DayPicker(day: $bill.day) }
                             .frame(width: 84, alignment: .leading)

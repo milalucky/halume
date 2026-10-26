@@ -346,6 +346,27 @@ NSDecimalRound(&insuranceUp, &insurancePer, 0, .up)
 check(ip2.plan(for: me.id, on: d(2026, 10, 23)).lines.first { $0.target == .envelope(insurance2.id) }?.planned == insuranceUp,
       "saved by the date")
 
+// Currencies: a $20 subscription and a 3,000 KZT bill in a rouble budget.
+var multi = budget
+multi.paydays = []; multi.envelopes = []; multi.debts = []
+multi.rates = ["USD": 80, "KZT": Decimal(string: "0.16")!]
+let gpt = Subscription(owner: .member(me.id), name: "ChatGPT", amount: 20, currency: "USD", anchor: d(2026, 11, 1))
+let kzBill = Bill(owner: .member(me.id), name: "Phone KZ", amount: 3_000, currency: "KZT", day: 2)
+multi.subscriptions = [gpt]; multi.bills = [kzBill]
+let mpl = Planner(multi, calendar: calendar).plan(for: me.id, on: d(2026, 10, 23))
+check(mpl.lines.first { $0.target == .subscription(gpt.id) }?.amount == 1_600, "USD subscription in roubles")
+check(mpl.lines.first { $0.target == .bill(kzBill.id) }?.amount == 480, "KZT bill in roubles")
+check(multi.foreignCurrencies == ["USD", "KZT"], "foreign currencies in use")
+let usdDebt = Debt(owner: .member(me.id), name: "Card", kind: .creditCard, balance: 1_000, asOf: d(2026, 10, 1), payment: 100, currency: "USD", day: 28)
+multi.debts = [usdDebt]
+var mpp = Planner(multi, calendar: calendar)
+var paidUSD = mpp.confirm(mpp.plan(for: me.id, on: d(2026, 10, 23)), actual: 80_000)
+check(paidUSD.allocations.first { $0.target == .debt(usdDebt.id) }?.amount == 8_000, "$100 payment is 8,000 roubles")
+paidUSD.allocations = paidUSD.allocations.map { a in var a = a; a.isDone = true; return a }
+multi.paydays = [paidUSD]
+mpp = Planner(multi, calendar: calendar)
+check(mpp.remaining(of: usdDebt, before: d(2026, 11, 10)) == 900, "the dollar balance goes down by $100")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),

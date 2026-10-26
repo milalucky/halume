@@ -123,8 +123,9 @@ public struct Planner: Sendable {
     /// After tax when the income is entered before tax, unless `gross`.
     func pay(of income: Income, on date: Date, absences: Bool, gross: Bool = false) -> Decimal {
         let amount = grossPay(of: income, on: date, absences: absences)
-        guard income.tax != nil, !gross else { return amount }
-        return amount - tax(of: income, gross: amount, on: date)
+        // Gross stays in the income's currency (taxes are counted there); take-home pay comes in the budget's.
+        guard !gross else { return amount }
+        return budget.convert(income.tax == nil ? amount : amount - tax(of: income, gross: amount, on: date), from: income.currency)
     }
 
     func grossPay(of income: Income, on date: Date, absences: Bool) -> Decimal {
@@ -240,7 +241,7 @@ public struct Planner: Sendable {
 
     /// A member's usual monthly salary (salaried incomes only).
     func monthlySalary(of member: UUID) -> Decimal {
-        budget.incomes.filter { $0.member == member && $0.isMonthly }.reduce(0) { $0 + $1.expected }
+        budget.incomes.filter { $0.member == member && $0.isMonthly }.reduce(0) { $0 + budget.convert($1.expected, from: $1.currency) }
     }
 
     /// Money that comes apart from paydays: vacation pay before a vacation, sick pay after sick leave.
@@ -390,21 +391,21 @@ public struct Planner: Sendable {
         for bill in budget.bills {
             let s = share(of: member, owner: bill.owner, split: bill.split, on: date)
             guard s > 0 else { continue }
-            due += monthDays([bill.day], from: date, to: last).map { (.bill(bill.id), bill.name, $0, up(bill.amount * s)) }
+            due += monthDays([bill.day], from: date, to: last).map { (.bill(bill.id), bill.name, $0, up(budget.convert(bill.amount, from: bill.currency) * s)) }
         }
         for debt in budget.debts {
             let s = share(of: member, owner: debt.owner, split: debt.split, on: date)
             let left = remaining(of: debt, before: date)
             guard s > 0, left > 0 else { continue }
             due += monthDays([debt.day], from: date, to: last).prefix(1)
-                .map { (.debt(debt.id), debt.name, $0, up(min(debt.payment, left) * s)) }
+                .map { (.debt(debt.id), debt.name, $0, up(budget.convert(min(debt.payment, left), from: debt.currency) * s)) }
         }
         for sub in budget.subscriptions {
             let s = share(of: member, owner: sub.owner, split: sub.split, on: date)
             guard s > 0 else { continue }
             let dates = charges(of: sub, from: date, to: last)
             if let first = dates.first {
-                due.append((.subscription(sub.id), sub.name, first, up(sub.amount * Decimal(dates.count) * s)))
+                due.append((.subscription(sub.id), sub.name, first, up(budget.convert(sub.amount, from: sub.currency) * Decimal(dates.count) * s)))
             }
         }
         for item in due.sorted(by: { $0.date < $1.date }) {
@@ -476,7 +477,8 @@ public struct Planner: Sendable {
             .filter { $0.isDone && $0.target == .debt(debt.id) }
         // shortcut: interest is added once per payment made, not by calendar month; close enough for a plan.
         let monthly = debt.rate / 1200
-        return payments.reduce(debt.balance) { left, payment in max(0, left + left * monthly - payment.amount) }
+        // Payments are in the budget's currency; the balance in the debt's.
+        return payments.reduce(debt.balance) { left, payment in max(0, left + left * monthly - budget.convert(payment.amount, to: debt.currency)) }
     }
 
     /// Months, interest and payoff date at a monthly payment; nil if the payment never covers the interest.

@@ -19,6 +19,9 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
     public var wishes: [Wish]
     public var reservations: [Reservation]
     public var projects: [Project]
+    /// Value of one unit of each foreign currency in the budget's currency.
+    public var rates: [String: Decimal]
+    public var ratesUpdated: Date?
     /// Holidays and moved days off for counting working days; nil means weekends only.
     public var workCalendar: WorkCalendar?
     public var paydays: [Payday]
@@ -32,6 +35,7 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         self.incomes = incomes; self.bills = bills; self.envelopes = envelopes
         self.debts = debts; self.subscriptions = subscriptions; self.withdrawals = withdrawals
         self.absences = []; self.workCalendar = nil; self.wishes = []; self.reservations = []; self.projects = []
+        self.rates = [:]; self.ratesUpdated = nil
         self.paydays = paydays; self.checks = checks
     }
 
@@ -53,6 +57,8 @@ public struct Budget: Codable, Sendable, Hashable, Identifiable {
         wishes = try c.decodeIfPresent([Wish].self, forKey: .wishes) ?? []
         reservations = try c.decodeIfPresent([Reservation].self, forKey: .reservations) ?? []
         projects = try c.decodeIfPresent([Project].self, forKey: .projects) ?? []
+        rates = try c.decodeIfPresent([String: Decimal].self, forKey: .rates) ?? [:]
+        ratesUpdated = try c.decodeIfPresent(Date.self, forKey: .ratesUpdated)
         workCalendar = try c.decodeIfPresent(WorkCalendar.self, forKey: .workCalendar)
         paydays = try c.decodeIfPresent([Payday].self, forKey: .paydays) ?? []
         checks = try c.decodeIfPresent([BalanceCheck].self, forKey: .checks) ?? []
@@ -114,13 +120,15 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
     public var split: PaySplit
     /// Set when `expected` is before tax: how tax is withheld.
     public var tax: TaxSetup?
+    /// The currency it's paid in; nil: the budget's.
+    public var currency: String?
 
     public init(id: UUID = UUID(), member: UUID, name: String, schedule: Schedule,
                 shift: WeekendShift = .earlier, expected: Decimal, isMonthly: Bool = false, split: PaySplit = .equal,
-                tax: TaxSetup? = nil) {
+                tax: TaxSetup? = nil, currency: String? = nil) {
         self.id = id; self.member = member; self.name = name
         self.schedule = schedule; self.shift = shift; self.expected = expected
-        self.isMonthly = isMonthly; self.split = split; self.tax = tax
+        self.isMonthly = isMonthly; self.split = split; self.tax = tax; self.currency = currency
     }
 
     public init(from decoder: Decoder) throws {
@@ -134,6 +142,7 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
         isMonthly = try c.decodeIfPresent(Bool.self, forKey: .isMonthly) ?? false
         split = try c.decodeIfPresent(PaySplit.self, forKey: .split) ?? .equal
         tax = try c.decodeIfPresent(TaxSetup.self, forKey: .tax)
+        currency = try c.decodeIfPresent(String.self, forKey: .currency)
     }
 }
 
@@ -143,12 +152,14 @@ public struct Bill: Codable, Sendable, Hashable, Identifiable {
     public var owner: Owner
     public var name: String
     public var amount: Decimal
+    /// nil: the budget's currency.
+    public var currency: String?
     public var day: Int
     public var split: Split
 
-    public init(id: UUID = UUID(), owner: Owner, name: String, amount: Decimal, day: Int, split: Split = .equal) {
+    public init(id: UUID = UUID(), owner: Owner, name: String, amount: Decimal, currency: String? = nil, day: Int, split: Split = .equal) {
         self.id = id; self.owner = owner; self.name = name
-        self.amount = amount; self.day = day; self.split = split
+        self.amount = amount; self.currency = currency; self.day = day; self.split = split
     }
 }
 
@@ -336,12 +347,15 @@ public struct Debt: Codable, Sendable, Hashable, Identifiable {
     public var rate: Decimal
     /// The usual monthly payment; may be changed any month.
     public var payment: Decimal
+    /// The debt's currency (balance and payment); nil: the budget's.
+    public var currency: String?
     public var day: Int
     public var split: Split
 
     public init(id: UUID = UUID(), owner: Owner, name: String, kind: DebtKind, original: Decimal? = nil,
-                balance: Decimal, asOf: Date = Date(), rate: Decimal = 0, payment: Decimal, day: Int, split: Split = .equal) {
-        self.id = id; self.owner = owner; self.name = name; self.kind = kind
+                balance: Decimal, asOf: Date = Date(), rate: Decimal = 0, payment: Decimal, currency: String? = nil, day: Int,
+                split: Split = .equal) {
+        self.id = id; self.owner = owner; self.name = name; self.kind = kind; self.currency = currency
         self.original = original ?? balance; self.balance = balance; self.asOf = asOf
         self.rate = rate; self.payment = payment; self.day = day; self.split = split
     }
@@ -357,6 +371,8 @@ public struct Subscription: Codable, Sendable, Hashable, Identifiable {
     public var owner: Owner
     public var name: String
     public var amount: Decimal
+    /// nil: the budget's currency.
+    public var currency: String?
     public var cycle: Cycle
     /// Any past or future charge date; the rest follow by the cycle.
     public var anchor: Date
@@ -367,10 +383,10 @@ public struct Subscription: Codable, Sendable, Hashable, Identifiable {
     public var note: String
     public var split: Split
 
-    public init(id: UUID = UUID(), owner: Owner, name: String, amount: Decimal, cycle: Cycle = .monthly,
+    public init(id: UUID = UUID(), owner: Owner, name: String, amount: Decimal, currency: String? = nil, cycle: Cycle = .monthly,
                 anchor: Date, trialEnds: Date? = nil, isActive: Bool = true, category: String = "",
                 note: String = "", split: Split = .equal) {
-        self.id = id; self.owner = owner; self.name = name; self.amount = amount; self.cycle = cycle
+        self.id = id; self.owner = owner; self.name = name; self.amount = amount; self.currency = currency; self.cycle = cycle
         self.anchor = anchor; self.trialEnds = trialEnds; self.isActive = isActive
         self.category = category; self.note = note; self.split = split
     }
@@ -382,6 +398,8 @@ public struct Wish: Codable, Sendable, Hashable, Identifiable {
     public var owner: UUID
     public var name: String
     public var price: Decimal
+    /// nil: the budget's currency.
+    public var currency: String?
     public var link: String
     public var note: String
     /// The savings envelope collecting money for it.
@@ -389,9 +407,9 @@ public struct Wish: Codable, Sendable, Hashable, Identifiable {
     /// Got it (bought or received).
     public var isDone: Bool
 
-    public init(id: UUID = UUID(), owner: UUID, name: String, price: Decimal = 0, link: String = "", note: String = "",
-                envelope: UUID? = nil, isDone: Bool = false) {
-        self.id = id; self.owner = owner; self.name = name; self.price = price; self.link = link; self.note = note
+    public init(id: UUID = UUID(), owner: UUID, name: String, price: Decimal = 0, currency: String? = nil, link: String = "",
+                note: String = "", envelope: UUID? = nil, isDone: Bool = false) {
+        self.id = id; self.owner = owner; self.name = name; self.price = price; self.currency = currency; self.link = link; self.note = note
         self.envelope = envelope; self.isDone = isDone
     }
 }
@@ -402,4 +420,28 @@ public struct Reservation: Codable, Sendable, Hashable {
     public var by: UUID
 
     public init(wish: UUID, by: UUID) { self.wish = wish; self.by = by }
+}
+
+extension Budget {
+    /// An amount in `code` turned into the budget's currency (unknown rates count one to one).
+    public func convert(_ amount: Decimal, from code: String?) -> Decimal {
+        guard let code, code != currency, let rate = rates[code] else { return amount }
+        return amount * rate
+    }
+
+    /// An amount in the budget's currency turned into `code`.
+    public func convert(_ amount: Decimal, to code: String?) -> Decimal {
+        guard let code, code != currency, let rate = rates[code], rate > 0 else { return amount }
+        return amount / rate
+    }
+
+    /// Every foreign currency the budget uses.
+    public var foreignCurrencies: Set<String> {
+        var codes = Set<String>()
+        codes.formUnion(bills.compactMap(\.currency)); codes.formUnion(debts.compactMap(\.currency))
+        codes.formUnion(subscriptions.compactMap(\.currency)); codes.formUnion(wishes.compactMap(\.currency))
+        codes.formUnion(incomes.compactMap(\.currency)); codes.formUnion(projects.flatMap { $0.tasks.compactMap(\.currency) })
+        codes.remove(currency)
+        return codes
+    }
 }

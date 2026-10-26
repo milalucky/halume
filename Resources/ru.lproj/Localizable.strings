@@ -709,3 +709,6 @@
 "Appliances" = "Техника";
 "Lighting" = "Свет";
 "Cleaning" = "Уборка";
+"Updated %@" = "Обновлено %@";
+"Amounts in other currencies count in %@ at these rates. They update by themselves; type your own if your bank's differ." = "Суммы в других валютах пересчитываются в %@ по этим курсам. Они обновляются сами; впишите свои, если в вашем банке другие.";
+"≈ %@ %@" = "≈ %@ %@";

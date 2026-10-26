@@ -14,6 +14,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             HouseholdSection()
+            RatesSection()
             SwiftUI.Section {
                 WorkCalendarPicker(calendar: Binding(get: { store.budget?.workCalendar }, set: { store.budget?.workCalendar = $0 }))
             } header: {

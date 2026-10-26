@@ -56,8 +56,9 @@ private struct Summary: View {
 
     var body: some View {
         let currency = planner.budget.currency
-        let left = debts.reduce(Decimal(0)) { $0 + planner.remaining(of: $1, before: tomorrow(today)) }
-        let monthly = debts.reduce(Decimal(0)) { $0 + $1.payment }
+        let budget = planner.budget
+        let left = debts.reduce(Decimal(0)) { $0 + budget.convert(planner.remaining(of: $1, before: tomorrow(today)), from: $1.currency) }
+        let monthly = debts.reduce(Decimal(0)) { $0 + budget.convert($1.payment, from: $1.currency) }
         let free = debts.compactMap { planner.payoff(balance: planner.remaining(of: $0, before: tomorrow(today)), rate: $0.rate, payment: $0.payment, from: planner.nextDue(of: $0, from: today))?.date }.max()
         StatRow {
             Stat(label: "Left to pay", value: left.money(currency), big: true)
@@ -129,12 +130,12 @@ private struct DebtCard: View {
                         Text("\(debt.rate.formatted())%").font(.caption.weight(.medium)).foregroundStyle(.secondary)
                     }
                 }
-                Text(left.money(currency))
+                Text(left.money(debt.currency ?? currency))
                     .font(.system(size: 28, weight: .medium, design: .rounded))
                     .monospacedDigit()
                 Bar(value: debt.original > 0 ? (1 - left / debt.original).double : 0)
                 HStack {
-                    Text("\(debt.payment.money(currency)) a month").font(.caption)
+                    Text("\(debt.payment.money(debt.currency ?? currency)) a month").font(.caption)
                     Spacer()
                     if let payoff {
                         Text("until \(payoff.date.formatted(.dateTime.month(.abbreviated).year()))").font(.caption)
@@ -208,8 +209,10 @@ struct DebtEditor: View {
                 BoxTextField(LocalizedStringKey(debt.kind == .installment ? "e.g. Split for headphones" : "Name"), text: $debt.name)
             }
             HStack(alignment: .top, spacing: 12) {
-                Field("Left to pay") { AmountField(amount: $left, currency: currency) }
-                Field(LocalizedStringKey(debt.kind == .personal ? "Paying back" : "Each month")) { AmountField(amount: $debt.payment, currency: currency) }
+                Field("Left to pay") { AmountField(amount: $left, code: $debt.currency, budgetCurrency: currency) }
+                Field(LocalizedStringKey(debt.kind == .personal ? "Paying back" : "Each month")) {
+                    AmountField(amount: $debt.payment, currency: debt.currency ?? currency)
+                }
             }
             HStack(alignment: .top, spacing: 12) {
                 Field("Due day") { DayPicker(day: $debt.day) }.frame(width: 100, alignment: .leading)
@@ -217,7 +220,7 @@ struct DebtEditor: View {
                     Field("Interest a year, %") { PercentField(value: $debt.rate) }
                 }
                 if debt.kind != .personal {
-                    Field("Borrowed", hint: "For progress") { AmountField(amount: $debt.original, currency: currency) }
+                    Field("Borrowed", hint: "For progress") { AmountField(amount: $debt.original, currency: debt.currency ?? currency) }
                 }
             }
             if !isNew {
@@ -276,7 +279,7 @@ struct PayoffSheet: View {
                     Button("Edit…") { store.sheet = .debt(debt) }.buttonStyle(SecondaryButtonStyle())
                 }
                 StatRow {
-                    Stat(label: "Left", value: left.money(currency), big: true)
+                    Stat(label: "Left", value: left.money(debt.currency ?? currency), big: true)
                     if let now {
                         Stat(label: "Paid off in", value: now.date.formatted(.dateTime.month(.wide).year()))
                         if debt.rate > 0 { Stat(label: "Interest ahead", value: now.interest.money(currency)) }
