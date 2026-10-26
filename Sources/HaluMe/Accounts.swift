@@ -250,7 +250,7 @@ struct PaySlotField: View {
                 Picker("From which pay", selection: $slot) {
                     Text("The one before it's due").tag(PaySlot?.none)
                     ForEach(Array(days.enumerated()), id: \.offset) { i, day in
-                        Text("From the pay on the \(day)th").tag(PaySlot?.some(.payday(i)))
+                        Text("From the pay on day \(day)").tag(PaySlot?.some(.payday(i)))
                     }
                     Text("Half from each").tag(PaySlot?.some(.split))
                 }
