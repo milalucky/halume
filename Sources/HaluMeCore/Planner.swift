@@ -441,6 +441,11 @@ public struct Planner: Sendable {
             return up(remaining / Decimal(max(count, 1)))
         case .open:
             return 0
+        case .annual(let amount, let on):
+            // Saved by the next time the date comes round; paying it (a withdrawal) starts the next year.
+            let next = nextOccurrence(of: on, from: date)
+            let missing = max(0, amount - balance(of: envelope, before: date)) * share
+            return up(missing / Decimal(max(paydays(of: member, from: date, to: next).count, 1)))
         case .project(let id):
             guard let project = budget.projects.first(where: { $0.id == id }) else { return 0 }
             return projectContribution(envelope, project: project, member: member, on: date, share: share)
@@ -554,6 +559,16 @@ public struct Planner: Sendable {
     }
 
     // MARK: Dates
+
+    /// The next day (today included) with the same day and month as `date`.
+    public func nextOccurrence(of date: Date, from start: Date) -> Date {
+        let c = calendar.dateComponents([.month, .day], from: date)
+        let year = calendar.component(.year, from: start)
+        for y in [year, year + 1] {
+            if let d = calendar.date(from: DateComponents(year: y, month: c.month, day: c.day)), day(d) >= day(start) { return day(d) }
+        }
+        return day(start)
+    }
 
     func day(_ date: Date) -> Date { calendar.startOfDay(for: date) }
     func add(_ days: Int, to date: Date) -> Date? { calendar.date(byAdding: .day, value: days, to: date) }

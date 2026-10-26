@@ -69,7 +69,7 @@ struct SettingsView: View {
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Spacer()
-                Button("Done") { NSApp.keyWindow?.performClose(nil) }
+                Button("Close") { NSApp.keyWindow?.performClose(nil) }
                     .buttonStyle(PrimaryButtonStyle())
                     .keyboardShortcut(.defaultAction)
             }

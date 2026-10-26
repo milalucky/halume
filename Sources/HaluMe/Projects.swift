@@ -316,11 +316,10 @@ struct NewProjectSheet: View {
                 Picker("Start from", selection: $template) {
                     ForEach(ProjectTemplate.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
                 }
-                .pickerStyle(.segmented)
                 .labelsHidden()
             }
-            if template == .moveAbroad {
-                Text("Typical steps of a move: documents, visa, the move itself, the first month. Add costs and dates for your case; remove what you don't need.")
+            if template != .empty {
+                Text("Typical steps, spread up to your date. Add costs and dates for your case; remove what you don't need.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Field("Done by") { DateField(date: $target, range: Date() ... .distantFuture) }.frame(width: 240, alignment: .leading)

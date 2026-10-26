@@ -108,13 +108,48 @@ extension BudgetStore {
 }
 
 enum ProjectTemplate: String, CaseIterable, Identifiable {
-    case moveAbroad = "Move to another country", empty = "Empty"
+    case moveAbroad = "Move to another country", baby = "Having a baby", university = "University", wedding = "Wedding",
+         renovation = "Renovation", empty = "Empty"
     var id: Self { self }
 
     /// Stages with typical steps, dated evenly up to the target; costs are left for the user.
     func stages(until target: Date) -> [Stage] {
-        guard self == .moveAbroad else { return [Stage(name: String(localized: "First steps"))] }
-        let plan: [(String, [String])] = [
+        let plan: [(String, [String])]
+        switch self {
+        case .empty:
+            return [Stage(name: String(localized: "First steps"))]
+        case .baby:
+            plan = [
+                ("Pregnancy", ["Doctor and tests", "Choosing a maternity hospital or contract", "Courses for parents", "Maternity clothes"]),
+                ("Getting ready", ["Pram and car seat", "Cot, mattress and bedding", "Clothes for the first months", "Bath, hygiene, first-aid kit",
+                                   "Hospital bag"]),
+                ("Birth", ["Hospital and doctors", "Getting home", "Documents: birth certificate, registration, insurance"]),
+                ("First months", ["Nappies and formula", "Paediatrician and vaccinations", "Help at home", "Photos and the first party"]),
+            ]
+        case .university:
+            plan = [
+                ("Choosing", ["Universities and programmes", "Open days and trips", "Tutors and courses"]),
+                ("Applying", ["Exams and tests", "Documents and translations", "Application fees", "Interviews or portfolio"]),
+                ("Enrolment", ["Tuition: first payment", "Contract and documents", "Housing or dormitory deposit"]),
+                ("First year", ["Laptop and supplies", "Moving in and furniture", "Transport and food for the first months"]),
+            ]
+        case .wedding:
+            plan = [
+                ("Plan", ["Date and guest list", "Budget by item", "Planner or organiser"]),
+                ("Places and people", ["Venue and catering", "Registry office or ceremony", "Photographer and video", "Host, music",
+                                       "Decor and flowers"]),
+                ("Looks", ["Dress and suit", "Rings", "Hair and make-up"]),
+                ("The day and after", ["Invitations", "Transport", "Cake", "Honeymoon"]),
+            ]
+        case .renovation:
+            plan = [
+                ("Plan", ["Measurements and design", "Estimate and contractor", "Permits if needed"]),
+                ("Rough work", ["Demolition and rubbish removal", "Electrics and plumbing", "Walls, screed, windows"]),
+                ("Finishing", ["Tiles and floors", "Paint and wallpaper", "Doors", "Kitchen and bathroom"]),
+                ("Moving in", ["Furniture", "Appliances", "Lighting", "Cleaning"]),
+            ]
+        case .moveAbroad:
+            plan = [
             ("Documents", ["Passports for everyone", "Apostilles and certified translations", "Education and work records assessment",
                            "Police certificates", "Language test"]),
             ("Visa", ["Application and government fees", "Biometrics (with the trip there)", "Medical exam", "Proof of funds"]),
@@ -123,7 +158,8 @@ enum ProjectTemplate: String, CaseIterable, Identifiable {
                                  "Close contracts, banks and subscriptions"]),
             ("First month", ["Temporary housing", "Rental deposit and first month", "Phone and bank account",
                              "Transit and getting around", "Furniture and basics"]),
-        ]
+            ]
+        }
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let span = max(4, calendar.dateComponents([.day], from: today, to: target).day ?? 120)

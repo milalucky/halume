@@ -164,6 +164,8 @@ public enum Goal: Codable, Sendable, Hashable {
     case open
     /// A project's fund: enough by each task's due date.
     case project(UUID)
+    /// A yearly cost due on a date (its day and month repeat every year), with an estimate that may change.
+    case annual(Decimal, on: Date)
 }
 
 public struct Envelope: Codable, Sendable, Hashable, Identifiable {

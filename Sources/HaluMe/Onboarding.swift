@@ -439,6 +439,11 @@ struct SavingsEditor: View {
                             DateField(date: $envelope.deadline, range: Date() ... .distantFuture)
                         }
                     }
+                    if envelope.kind == .annual {
+                        Field("Every year on", hint: "The amount is an estimate; change it when you know more") {
+                            DateField(date: $envelope.deadline)
+                        }
+                    }
                     Field("Already saved") { AmountField(amount: $envelope.opening, currency: currency) }
                         .frame(width: 150, alignment: .leading)
                     Spacer(minLength: 0)
@@ -449,12 +454,18 @@ struct SavingsEditor: View {
             }
             .card(padding: 20)
         }
-        Suggestions(names: ["Emergency fund", "Vacation", "Gifts", "New laptop"]
+        Suggestions(names: ["Emergency fund", "Vacation", "Birthday gift", "New Year", "Car insurance", "Car service", "Taxes",
+                            "Health", "Education", "Renovation", "New laptop"]
             .filter { name in !envelopes.contains { $0.name == String(localized: String.LocalizationValue(name)) } }) { name in
+            let calendar = Calendar.current
+            let inMonths = { (m: Int) in calendar.date(byAdding: .month, value: m, to: Date())! }
+            let newYear = calendar.date(from: DateComponents(year: calendar.component(.year, from: Date()), month: 12, day: 20))!
             let goal: Goal = switch name {
             case String(localized: "Emergency fund"): .percent(10)
-            case String(localized: "Gifts"): .yearly(0)
-            default: .target(0, by: Calendar.current.date(byAdding: .month, value: 6, to: Date())!)
+            case String(localized: "New Year"): .annual(0, on: newYear)
+            case String(localized: "Car insurance"), String(localized: "Car service"), String(localized: "Taxes"): .annual(0, on: inMonths(6))
+            case String(localized: "Birthday gift"): .annual(0, on: inMonths(3))
+            default: .target(0, by: inMonths(6))
             }
             envelopes.append(Envelope(owner: .member(member), name: name, goal: goal))
         }
@@ -482,14 +493,14 @@ private struct PreviewStep: View {
 // MARK: Goal editing
 
 enum GoalKind: String, CaseIterable, Identifiable {
-    case target = "Goal by a date", percent = "% of each pay", perPayday = "Same each payday", yearly = "Yearly expense"
+    case target = "Goal by a date", percent = "% of each pay", perPayday = "Same each payday", annual = "Once a year, on a date"
     var id: Self { self }
 
     var amountLabel: LocalizedStringKey {
         switch self {
         case .target: "Goal"
         case .perPayday: "Each payday"
-        case .yearly: "Per year"
+        case .annual: "About"
         case .percent: "Percent"
         }
     }
@@ -501,7 +512,7 @@ extension Envelope {
             switch goal {
             case .target: .target
             case .percent: .percent
-            case .yearly: .yearly
+            case .yearly, .annual: .annual
             case .perPayday, .open, .project: .perPayday
             }
         }
@@ -511,7 +522,7 @@ extension Envelope {
     var value: Decimal {
         get {
             switch goal {
-            case .target(let v, _), .percent(let v), .perPayday(let v), .yearly(let v): v
+            case .target(let v, _), .percent(let v), .perPayday(let v), .yearly(let v), .annual(let v, _): v
             case .open, .project: 0
             }
         }
@@ -521,6 +532,7 @@ extension Envelope {
     var deadline: Date {
         get {
             if case .target(_, let by) = goal { return by }
+            if case .annual(_, let on) = goal { return on }
             return Calendar.current.date(byAdding: .month, value: 6, to: Date())!
         }
         set { goal = Self.goal(kind, value: value, deadline: newValue) }
@@ -531,7 +543,7 @@ extension Envelope {
         case .target: .target(value, by: deadline)
         case .percent: .percent(value)
         case .perPayday: .perPayday(value)
-        case .yearly: .yearly(value)
+        case .annual: .annual(value, on: deadline)
         }
     }
 }

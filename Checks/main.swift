@@ -333,6 +333,19 @@ project.stages[0].tasks[0].spent = 48_000
 moving.projects = [project]
 check(project.spentSoFar == 48_000 && project.milestones().map(\.needed) == [320_000], "done tasks leave the plan")
 
+// A yearly cost on a date: car insurance ~36,000 every 15 March.
+var insured = budget
+insured.paydays = []
+let insurance2 = Envelope(owner: .member(me.id), name: "Car insurance", goal: .annual(36_000, on: d(2020, 3, 15)), priority: 9)
+insured.envelopes = [insurance2]
+let ip2 = Planner(insured, calendar: calendar)
+check(ip2.nextOccurrence(of: d(2020, 3, 15), from: d(2026, 10, 23)) == d(2027, 3, 15), "next 15 March")
+let toInsurance = ip2.paydays(of: me.id, from: d(2026, 10, 23), to: d(2027, 3, 15)).count
+var insurancePer = Decimal(36_000) / Decimal(toInsurance), insuranceUp = Decimal()
+NSDecimalRound(&insuranceUp, &insurancePer, 0, .up)
+check(ip2.plan(for: me.id, on: d(2026, 10, 23)).lines.first { $0.target == .envelope(insurance2.id) }?.planned == insuranceUp,
+      "saved by the date")
+
 // Typed amounts.
 for (typed, value) in [("55000", 55_000), ("55 000", 55_000), ("55\u{00A0}000 ₽", 55_000), ("₽117,500", 117_500),
                        ("$1,234.50", Decimal(string: "1234.5")!), ("12,5", Decimal(string: "12.5")!), ("1.234,56", Decimal(string: "1234.56")!),
