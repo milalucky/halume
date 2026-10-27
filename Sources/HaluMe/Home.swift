@@ -195,12 +195,12 @@ struct PlanList: View {
                 Image(systemName: folded.contains(kind) ? "chevron.right" : "chevron.down")
                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary).frame(width: 24)
                 Image(systemName: kind.icon).foregroundStyle(Palette.orange)
-                Text(kind.title).font(.subheadline.weight(.semibold))
+                Text(kind.title).font(.body.weight(.semibold))
                 if toggle != nil {
-                    Text("\(done)/\(lines.count)").font(.caption).foregroundStyle(done == lines.count ? Palette.green : Color.secondary)
+                    Text("\(done)/\(lines.count)").font(.callout).foregroundStyle(done == lines.count ? Palette.green : Color.secondary)
                 }
                 Spacer()
-                Text(total.money(currency)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                Text(total.money(currency)).font(.body.weight(.semibold)).monospacedDigit()
             }
             .padding(.vertical, 10)
             .contentShape(Rectangle())
@@ -232,16 +232,16 @@ struct PlanList: View {
                 Text(line.target == .carry ? String(localized: "Keep for \(plan.next.formatted(.dateTime.day().month(.wide)))") : line.name)
                     .strikethrough(done, color: .secondary).foregroundStyle(done ? .secondary : .primary)
                 if let from = source?(line.target) {
-                    (Text(line.target.kind) + Text(" · ") + Text(from)).font(.caption).foregroundStyle(.tertiary)
+                    (Text(line.target.kind) + Text(" · ") + Text(from)).font(.footnote).foregroundStyle(.tertiary)
                 } else {
-                    Text(line.target.kind).font(.caption).foregroundStyle(.tertiary)
+                    Text(line.target.kind).font(.footnote).foregroundStyle(.tertiary)
                 }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 1) {
                 Text(line.amount.money(currency)).monospacedDigit().foregroundStyle(done ? .secondary : .primary)
                 if line.amount < line.planned {
-                    Text("of \(line.planned.money(currency))").font(.caption).foregroundStyle(Palette.red)
+                    Text("of \(line.planned.money(currency))").font(.footnote).foregroundStyle(Palette.red)
                 }
             }
         }
@@ -299,7 +299,7 @@ private struct IncomeRow: View {
             Image(systemName: icon).foregroundStyle(Palette.green).frame(width: 24)
             VStack(alignment: .leading, spacing: 1) {
                 title
-                detail.font(.caption).foregroundStyle(.tertiary)
+                detail.font(.footnote).foregroundStyle(.tertiary)
             }
             Spacer()
             Text("+" + amount.money(currency)).monospacedDigit().foregroundStyle(Palette.green)

@@ -281,6 +281,8 @@ struct PayoffSheet: View {
     let debtID: UUID
     @State private var extra: Double = 0
     @State private var once: Decimal = 0
+    /// After a one-off payment banks either keep the payment and shorten the term, or keep the term and lower the payment.
+    @State private var lowerPayment = false
 
     var body: some View {
         if let planner = store.planner, let debt = planner.budget.debts.first(where: { $0.id == debtID }) {
@@ -291,8 +293,11 @@ struct PayoffSheet: View {
             let now = planner.payoff(of: debt, balance: left, payment: debt.payment, from: due)
             let step = max(Decimal(500), up(debt.payment / 10, to: 500))
             let more = Decimal(extra).rounded(to: step)
-            let then = planner.payoff(of: debt, balance: max(0, left - once), payment: debt.payment + more, from: due)
             let biweekly = debt.biweeklyFrom != nil
+            let lowers = once > 0 && lowerPayment && now != nil
+            let payment = lowers ? Payoff.annuity(balance: max(0, left - once), rate: debt.rate, count: now?.months ?? 0, perYear: biweekly ? 26 : 12)
+                                 : debt.payment
+            let then = planner.payoff(of: debt, balance: max(0, left - once), payment: payment + more, from: due)
             VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -320,17 +325,37 @@ struct PayoffSheet: View {
                         }
                         Slider(value: $extra, in: 0...max(debt.payment * 2, 1_000).double)
                     }
-                    Field("Or pay once now") { AmountField(amount: $once, currency: currency) }.frame(width: 200, alignment: .leading)
+                    HStack(alignment: .bottom, spacing: 12) {
+                        Field("Or pay once now") { AmountField(amount: $once, currency: currency) }.frame(width: 200, alignment: .leading)
+                        if once > 0 {
+                            Picker("Then", selection: $lowerPayment) {
+                                Text("Shorter term").tag(false)
+                                Text("Smaller payment").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .controlSize(.large)
+                            .help("Ask your bank which one it does; for a mortgage you can usually choose")
+                        }
+                    }
                     if let now, let then, more > 0 || once > 0 {
                         let months = now.months - then.months
                         let saved = now.interest - then.interest
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Paid off by \(then.date.formatted(.dateTime.month(.wide).year()))").font(.body.weight(.semibold))
+                                if lowers {
+                                    Text("The payment becomes \((payment + more).money(currency)) instead of \(debt.payment.money(currency))")
+                                        .font(.body.weight(.medium))
+                                }
+                                if lowers {
+                                    if saved > 0 { Text("\(saved.money(currency)) less interest").foregroundStyle(.secondary) }
+                                } else {
                                 Text(biweekly ? String(localized: "\(months) payments sooner")
                                      : saved > 0 ? String(localized: "\(months) months sooner, \(saved.money(currency)) less interest")
                                      : String(localized: "\(months) months sooner"))
                                     .foregroundStyle(.secondary)
+                                }
                             }
                         } icon: {
                             Image(systemName: "arrow.down.forward.circle.fill").foregroundStyle(Palette.green).font(.title2)
@@ -345,14 +370,20 @@ struct PayoffSheet: View {
                 HStack {
                     Spacer()
                     Button("Close") { dismiss() }.buttonStyle(SecondaryButtonStyle()).keyboardShortcut(.cancelAction)
-                    if more > 0 {
-                        Button(biweekly ? String(localized: "Pay \((debt.payment + more).money(currency)) each time")
-                                        : String(localized: "Pay \((debt.payment + more).money(currency)) a month")) {
+                    if more > 0 || once > 0 {
+                        Button(once > 0 ? String(localized: "Record the \(once.money(currency)) Payment")
+                               : biweekly ? String(localized: "Pay \((debt.payment + more).money(currency)) each time")
+                               : String(localized: "Pay \((debt.payment + more).money(currency)) a month")) {
                             var changed = debt
-                            changed.payment += more
+                            changed.payment = payment + more
+                            if once > 0 {
+                                changed.balance = max(0, left - once)
+                                changed.asOf = tomorrow(today)
+                            }
                             store.save(changed)
                             dismiss()
                         }
+                        .help(LocalizedStringKey(once > 0 ? "Lowers what’s left by this payment and keeps the payment you chose" : ""))
                         .buttonStyle(PrimaryButtonStyle())
                         .keyboardShortcut(.defaultAction)
                     }
@@ -376,4 +407,10 @@ extension Decimal {
     }
 
     func rounded(to step: Decimal) -> Decimal { (self / step).rounded() * step }
+
+    func rounded(toPlaces places: Int) -> Decimal {
+        var value = self, result = Decimal()
+        NSDecimalRound(&result, &value, places, .plain)
+        return result
+    }
 }

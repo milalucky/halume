@@ -105,10 +105,28 @@ struct RunwayCard: View {
                 Text("\(runway.days) days").font(.title3.weight(.semibold)).monospacedDigit()
                     .foregroundStyle(months >= 3 ? Palette.green : months >= 1 ? Palette.orange : Palette.red)
             }
-            Text(runway.monthlyNeed > 0
-                 ? String(localized: "Without any pay, your savings would last about \(months.formatted(.number.precision(.fractionLength(1)))) months at \(runway.monthlyNeed.money(currency)) a month: bills, debts, subscriptions and your usual spending.")
-                 : String(localized: "Add your bills and savings to see how long your money would last without pay."))
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if runway.monthlyNeed > 0 {
+                Text("If pay stopped today, your savings would last this long.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 6) {
+                    Line(label: "Savings you keep", value: runway.savings.money(currency))
+                    Line(label: "Bills, debts and subscriptions a month", value: runway.costs.money(currency))
+                    Line(label: LocalizedStringKey(runway.livingIsSet ? "To live on a month" : "To live on a month, from your plan"), value: runway.living.money(currency))
+                    Divider()
+                    Line(label: "Lasts", value: String(localized: "\(runway.savings.money(currency)) ÷ \(runway.monthlyNeed.money(currency)) ≈ \(months.formatted(.number.precision(.fractionLength(1)))) months"))
+                }
+                if !runway.livingIsSet {
+                    HStack {
+                        Text("Set how much you need to live on a month (food, cafés, clothes) for a truer number.")
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Button("Set…") { store.sheet = .plan }.buttonStyle(SecondaryButtonStyle())
+                    }
+                }
+            } else {
+                Text("Add your bills and savings to see how long your money would last without pay.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             Bar(value: min(1, months / 6))
                 .accessibilityLabel(Text("\(months.formatted(.number.precision(.fractionLength(1)))) of 6 months"))
             HStack {
@@ -119,7 +137,7 @@ struct RunwayCard: View {
                 Text("6 months").font(.caption2)
             }
             .foregroundStyle(.tertiary)
-            Text("Only savings you keep count. Savings for a planned cost are already spoken for.").font(.caption).foregroundStyle(.tertiary)
+            Text("Only savings you keep count. Savings for a planned cost are already spoken for.").font(.footnote).foregroundStyle(.secondary)
             if runway.locked > 0 {
                 Text("Including \(runway.locked.money(currency)) in deposits you can't take out early.").font(.caption).foregroundStyle(.secondary)
             }
@@ -133,6 +151,20 @@ struct RunwayCard: View {
             }
         }
         .card()
+    }
+
+    private struct Line: View {
+        let label: LocalizedStringKey
+        let value: String
+
+        var body: some View {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label).foregroundStyle(.secondary)
+                Spacer()
+                Text(value).monospacedDigit()
+            }
+            .font(.callout)
+        }
     }
 }
 

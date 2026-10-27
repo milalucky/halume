@@ -2,10 +2,12 @@ import HaluMeCore
 import SwiftUI
 
 extension BudgetStore {
-    /// Fetches rates for every foreign currency in use, at most twice a day unless one is missing or `force`.
-    func refreshRates(force: Bool = false) async {
+    /// Fetches rates for every foreign currency in use (plus `also`, picked in a sheet not saved yet),
+    /// at most twice a day unless one is missing or `force`.
+    func refreshRates(force: Bool = false, also: String? = nil) async {
         guard let budget, !isDemo else { return }
-        let codes = budget.foreignCurrencies
+        var codes = budget.foreignCurrencies
+        if let also, also != budget.currency { codes.insert(also) }
         guard !codes.isEmpty else { return }
         let stale = budget.ratesUpdated.map { Date().timeIntervalSince($0) > 12 * 3600 } ?? true
         guard force || stale || !codes.isSubset(of: Set(budget.rates.keys)) else { return }

@@ -120,16 +120,33 @@ struct AccountsSection: View {
 struct AccountEditor: View {
     @Environment(BudgetStore.self) private var store
     @State var account: Account
+    @State private var balance: Decimal = 0
+    @State private var before: Decimal = 0
 
     var body: some View {
         let budget = store.budget!
         let isNew = !budget.accounts.contains { $0.id == account.id }
+        let inside = budget.envelopes.filter { $0.account == account.id }
         SheetFrame(title: LocalizedStringKey(isNew ? "New account" : "Edit account"),
                    subtitle: "Just a name to tell your accounts apart. HaluMe never asks for account numbers.",
                    action: LocalizedStringKey(isNew ? "Add" : "Save"),
                    canSave: !account.name.trimmingCharacters(in: .whitespaces).isEmpty,
-                   save: { store.save(account) }) {
+                   save: { save(inside: inside) }) {
             AccountFields(account: $account)
+            if inside.count <= 1 {
+                Field("On it now", hint: LocalizedStringKey(inside.isEmpty
+                        ? "Becomes a saving with the account's name, one you keep. Change it on the Savings page."
+                        : "A change goes into or out of the saving kept here.")) {
+                    AmountField(amount: $balance, currency: budget.currency)
+                }
+                .frame(maxWidth: 260, alignment: .leading)
+            } else {
+                HStack {
+                    Text("On it now: \(before.money(budget.currency)), split between its savings.").foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Check the Balance…") { store.sheet = .accountCheck(account.id) }.buttonStyle(SecondaryButtonStyle())
+                }
+            }
             if !isNew {
                 Button("Delete Account", role: .destructive) {
                     store.deleteAccount(account.id)
@@ -138,6 +155,25 @@ struct AccountEditor: View {
                 .buttonStyle(.borderless)
                 .foregroundStyle(Palette.red)
             }
+        }
+        .onAppear {
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+            before = inside.reduce(Decimal(0)) { $0 + (store.planner?.balance(of: $1, before: tomorrow) ?? 0) }
+            balance = before
+        }
+    }
+
+    private func save(inside: [Envelope]) {
+        store.save(account)
+        guard balance != before, inside.count <= 1 else { return }
+        if let envelope = inside.first {
+            store.reconcile(account.id, difference: balance - before, envelope: envelope.id)
+        } else if balance > 0, var budget = store.budget {
+            var envelope = Envelope(owner: account.owner, name: account.name, goal: .open, priority: budget.envelopes.count,
+                                    opening: balance, holding: account.kind.holding, account: account.id)
+            envelope.purpose = .keep
+            budget.envelopes.append(envelope)
+            store.budget = budget
         }
     }
 }
@@ -185,7 +221,7 @@ struct AccountFields: View {
                 Field("Ends") {
                     DateField(date: Binding(get: { account.maturity ?? Date() }, set: { account.maturity = $0 }), range: Date() ... .distantFuture)
                 }
-                .frame(width: 240, alignment: .leading)
+                .frame(maxWidth: 240, alignment: .leading)
             }
         }
     }
@@ -251,7 +287,7 @@ struct PayFromField: View {
                 }
                 .labelsHidden()
             }
-            .frame(width: 220, alignment: .leading)
+            .frame(maxWidth: 220, alignment: .leading)
         }
     }
 }
@@ -273,7 +309,7 @@ struct PaySlotField: View {
                 }
                 .labelsHidden()
             }
-            .frame(width: 240, alignment: .leading)
+            .frame(maxWidth: 240, alignment: .leading)
         }
     }
 }
@@ -299,7 +335,7 @@ struct AccountCheckSheet: View {
                     Stat(label: "HaluMe expects", value: expected.money(currency))
                     Stat(label: "Difference", value: actual == nil ? "—" : (diff > 0 ? "+" : "") + diff.money(currency))
                 }
-                Field("In the bank now") { AmountField(optional: $actual, currency: currency, placeholder: "0") }.frame(width: 220, alignment: .leading)
+                Field("In the bank now") { AmountField(optional: $actual, currency: currency, placeholder: "0") }.frame(maxWidth: 220, alignment: .leading)
                 if actual != nil {
                     if diff == 0 {
                         Label("It matches.", systemImage: "checkmark.circle").foregroundStyle(Palette.green)

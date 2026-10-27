@@ -503,6 +503,11 @@ ahead.paydays = [bigPay]
 check(Planner(ahead, calendar: calendar).plan(for: me.id, on: d(2026, 10, 23)).lines.first { $0.target == .carry }?.amount == 40_000,
       "never more than the extra")
 
+// Early repayment that lowers the payment: 1 000 000 at 12% over 120 months is about 14 347 a month.
+let annuity = Payoff.annuity(balance: 1_000_000, rate: 12, count: 120)
+check(annuity > 14_340 && annuity < 14_350, "annuity payment (\(annuity))")
+check(Planner(budget, calendar: calendar).payoff(balance: 1_000_000, rate: 12, payment: annuity, from: d(2026, 11, 1))?.months == 120, "and it clears the debt in 120 months")
+
 // Runway, net worth: 120 000 saved, a 1 000 000 car, a 100 000 loan.
 var solo = Budget(name: "Solo", currency: "RUB", members: [me], incomes: [salary],
                   bills: [Bill(owner: .member(me.id), name: "Rent", amount: 30_000, day: 5)],
@@ -513,6 +518,15 @@ let soloP = Planner(solo, calendar: calendar)
 check(soloP.monthlyCosts(of: me.id, on: d(2026, 10, 27)) == 40_000, "a month's bills and debt payments")
 let run = soloP.runway(of: me.id, on: d(2026, 10, 27))
 check(run.savings == 120_000 && run.monthlyNeed > 40_000 && run.months < 3 && run.days > 0, "runway (\(run.months) months, \(run.days) days)")
+// Money to live on: kept before savings, and it's what the runway counts.
+var lean = solo
+lean.incomes[0].living = 50_000
+lean.envelopes.append(Envelope(owner: .member(me.id), name: "Big", goal: .perPayday(1_000_000)))
+let lp = Planner(lean, calendar: calendar)
+let leanFree = lp.plan(for: me.id, on: d(2026, 10, 23)).free
+check(leanFree >= 29_000 && leanFree < 30_000, "18 days of a 50 000 month stay to live on (\(leanFree))")
+let leanRun = lp.runway(of: me.id, on: d(2026, 10, 27))
+check(leanRun.living == 50_000 && leanRun.costs == 40_000 && leanRun.livingIsSet, "runway uses the minimum to live on")
 check(soloP.worth(of: me.id, on: d(2026, 10, 27)).total == 1_020_000, "net worth: savings + car − loan")
 check(soloP.worthHistory(of: nil, months: 3, to: d(2026, 10, 27)).count == 4, "three month starts and today")
 

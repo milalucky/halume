@@ -59,6 +59,14 @@ public struct Payoff: Sendable, Hashable {
         }
         return (months, up(interest))
     }
+
+    /// The equal payment that clears `balance` in `count` payments: how banks lower the payment after an early repayment.
+    public static func annuity(balance: Decimal, rate: Decimal, count: Int, perYear: Int = 12) -> Decimal {
+        guard count > 0, balance > 0 else { return 0 }
+        let r = (rate / 100 / Decimal(perYear)).double
+        guard r > 0 else { return up(balance / Decimal(count)) }
+        return up(balance * Decimal(r / (1 - pow(1 + r, -Double(count)))))
+    }
 }
 
 public struct Allowance: Sendable, Hashable {
@@ -428,7 +436,6 @@ public struct Planner: Sendable {
     public func plan(for member: UUID, on date: Date) -> Plan {
         let date = day(date)
         let next = self.next(after: date, of: member) ?? calendar.date(byAdding: .month, value: 1, to: date)!
-        let record = payday(of: member, on: date)
         let extra = extras(of: member, from: date, to: add(-1, to: next)!)
         let carriedIn = carry(of: member, into: date)
         let pay = incoming(of: member, at: date, next: next) + carriedIn
@@ -482,15 +489,24 @@ public struct Planner: Sendable {
         let keep = carryOut(of: member, at: date, next: next, money: pay)
         if keep > 0 { take(.carry, "", keep) }
 
+        // Money to live on comes before savings: envelopes are cut first when pay runs short.
+        let living = min(up(living(of: member) * Decimal(days(date, next)) * 12 / 365), max(left, 0))
+        left -= living
         for envelope in budget.envelopes.sorted(by: { $0.priority < $1.priority }) {
             let s = share(of: member, owner: envelope.owner, split: envelope.split, on: date)
             guard s > 0 else { continue }
             let planned = contribution(envelope, member: member, on: date, pay: pay, share: s)
             if planned > 0 { take(.envelope(envelope.id), envelope.name, planned) }
         }
+        left += living
 
         return Plan(member: member, date: date, next: next, pay: pay, lines: lines, free: max(left, 0),
                     extras: extra, carriedIn: carriedIn)
+    }
+
+    /// The member's monthly minimum to live on; 0 when not set.
+    public func living(of member: UUID) -> Decimal {
+        budget.incomes.first { $0.member == member && $0.living != nil }?.living ?? 0
     }
 
     func contribution(_ envelope: Envelope, member: UUID, on date: Date, pay: Decimal, share: Decimal) -> Decimal {

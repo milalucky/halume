@@ -178,9 +178,9 @@ struct Field<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.subheadline.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+            Text(label).font(.callout.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
             content.controlSize(.large)
-            if let hint { Text(hint).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            if let hint { Text(hint).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }
 }

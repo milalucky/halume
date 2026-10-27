@@ -6,8 +6,14 @@ public struct Runway: Sendable, Hashable {
     public var savings: Decimal
     /// Part of it in deposits that can't be taken out early.
     public var locked: Decimal
-    /// Bills, debt payments, subscriptions and the usual spending money, a month.
-    public var monthlyNeed: Decimal
+    /// Bills, debt payments and subscriptions a month.
+    public var costs: Decimal
+    /// Money to live on a month: the minimum set in the plan, else the usual free money.
+    public var living: Decimal
+    /// `living` is the minimum the user set, not a guess from the plan.
+    public var livingIsSet: Bool
+
+    public var monthlyNeed: Decimal { costs + living }
 
     public var months: Decimal { monthlyNeed > 0 ? savings / monthlyNeed : 0 }
     public var days: Int { monthlyNeed > 0 ? NSDecimalNumber(decimal: down(savings / monthlyNeed * 365 / 12)).intValue : 0 }
@@ -77,7 +83,9 @@ extension Planner {
             let account = envelope.account.flatMap { id in budget.accounts.first { $0.id == id } }
             if account.map({ !$0.canWithdraw }) ?? (envelope.holding == .deposit) { locked += amount }
         }
-        return Runway(savings: down(savings), locked: down(locked), monthlyNeed: down(monthlyCosts(of: member, on: date) + monthlySpending(of: member, on: date)))
+        let minimum = living(of: member)
+        return Runway(savings: down(savings), locked: down(locked), costs: down(monthlyCosts(of: member, on: date)),
+                      living: down(minimum > 0 ? minimum : monthlySpending(of: member, on: date)), livingIsSet: minimum > 0)
     }
 
     /// Bills, debt payments and subscriptions a month, the member's share, in the budget's currency.
@@ -239,6 +247,11 @@ extension Planner {
         var b = budget
         for i in b.incomes.indices where b.incomes[i].member == member {
             b.incomes[i].expected = down(b.incomes[i].expected * (100 + payChange) / 100)
+        }
+        // A pay already entered for this period would otherwise hide the change.
+        let from = current(on: Date(), of: member) ?? day(Date())
+        for i in b.paydays.indices where b.paydays[i].member == member && b.paydays[i].date >= from {
+            b.paydays[i].actual = b.paydays[i].actual.map { down($0 * (100 + payChange) / 100) }
         }
         // A whole-budget-month cost or saving, paid from the member's first payday each month.
         let first = slotDays(of: member).map { _ in PaySlot.payday(0) }

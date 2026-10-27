@@ -171,12 +171,15 @@ struct PaySettings {
     var flatRate: Decimal = 0
     /// The salary's currency; nil: the budget's.
     var currency: String?
+    /// The least needed to live on a month; 0: whatever is left.
+    var living: Decimal = 0
 
     init() {}
 
     init(_ income: Income, country: String) {
         self.country = country
         currency = income.currency
+        living = income.living ?? 0
         shift = income.shift
         amount = income.expected
         switch income.schedule {
@@ -247,6 +250,7 @@ struct PaySettings {
         income.shift = frequency == .irregular ? .none : shift
         income.irregular = frequency == .irregular
         income.currency = currency
+        income.living = living > 0 ? living : nil
         income.expected = yearly ? amount / perYear : amount
         income.isMonthly = isMonthly
         income.tax = beforeTax
@@ -303,16 +307,23 @@ struct PayEditor: View {
     var calendar: WorkCalendar?
     var showsTitle = true
 
+    private var frequencyPicker: some View {
+        Picker("How often", selection: $pay.frequency) {
+            ForEach(Frequency.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
+        }
+        .labelsHidden()
+    }
+
     var body: some View {
         if showsTitle {
             StepTitle("When do you get paid?", "Enter your usual salary. When pay comes in different from it — sick leave, holidays, a bonus — you'll enter the real amount and the plan adjusts.")
         }
         Field("How often") {
-            Picker("How often", selection: $pay.frequency) {
-                ForEach(Frequency.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
+            // Six choices don't fit a narrow window in Russian: fall back to a menu.
+            ViewThatFits(in: .horizontal) {
+                frequencyPicker.pickerStyle(.segmented)
+                frequencyPicker.pickerStyle(.menu).fixedSize()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
         }
         HStack(alignment: .top, spacing: 16) {
             switch pay.frequency {
@@ -332,6 +343,9 @@ struct PayEditor: View {
             Field(amountLabel) { AmountField(amount: $pay.amount, code: $pay.currency, budgetCurrency: currency) }
         }
         TaxFields(pay: $pay, currency: currency, calendar: calendar)
+        Field("Needed to live on a month", hint: "Food, cafés, clothes, fun: the least you need. The plan keeps it before savings, so savings are cut first when pay runs short. Leave 0 to live on whatever is left.") {
+            AmountField(amount: $pay.living, currency: currency).frame(width: 260)
+        }
         if pay.frequency == .twiceMonthly {
             Field("How it's split", hint: splitHint) {
                 Picker("Split", selection: $pay.split) {

@@ -108,8 +108,11 @@ struct InflowSheet: View {
     var body: some View {
         let budget = store.budget!
         let isNew = !budget.inflows.contains { $0.id == inflow.id }
-        let total = budget.convert(inflow.amount, from: inflow.currency)
+        // The parts are typed in the money's own currency and turned into the budget's on save.
+        let code = inflow.currency ?? budget.currency
+        let foreign = code != budget.currency
         let placed = inflow.income == nil ? parts.values.reduce(0, +) : 0
+        let rest = inflow.amount - placed
         let envelopes = budget.envelopes.filter { e in
             if case .member(let id) = e.owner { id == inflow.member } else { true }
         }
@@ -117,7 +120,7 @@ struct InflowSheet: View {
         SheetFrame(title: LocalizedStringKey(isNew ? "Money came in" : "Edit money that came in"),
                    subtitle: inflow.income == nil ? "Put some of it into savings; the rest adds to what you can spend until payday."
                                                   : "Earnings wait until the 1st: then they become next month's budget.",
-                   action: "Save", canSave: inflow.amount > 0 && placed <= total,
+                   action: "Save", canSave: inflow.amount > 0 && rest >= 0,
                    save: save, delete: isNew ? nil : { store.deleteInflow(inflow.id) }) {
             if !earnings.isEmpty {
                 Picker("What is it", selection: $inflow.income) {
@@ -141,25 +144,43 @@ struct InflowSheet: View {
             }
             Field("Date") { DateField(date: $inflow.date, range: .distantPast ... Date()) }.frame(width: 220, alignment: .leading)
             if inflow.income == nil {
-                if !envelopes.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Into savings").font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
-                        ForEach(envelopes) { envelope in
-                            HStack {
-                                Text(envelope.name)
-                                Spacer()
-                                AmountField(optional: Binding(get: { parts[envelope.id] }, set: { parts[envelope.id] = $0 }),
-                                            currency: budget.currency, placeholder: "0")
-                                    .frame(width: 160)
-                            }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Where it goes").font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                    ForEach(envelopes) { envelope in
+                        HStack {
+                            Text(envelope.name)
+                            Spacer()
+                            AllButton(help: "Put all that's left here") { parts[envelope.id] = (parts[envelope.id] ?? 0) + rest }
+                                .opacity(rest > 0 ? 1 : 0)
+                            AmountField(optional: Binding(get: { parts[envelope.id] }, set: { parts[envelope.id] = $0 }),
+                                        currency: code, placeholder: "0")
+                                .frame(width: 160)
                         }
                     }
-                    .card(padding: 14)
+                    if !envelopes.isEmpty { Divider() }
+                    HStack {
+                        Label("To spend until payday", systemImage: "sun.max").foregroundStyle(rest >= 0 ? Palette.orange : Palette.red)
+                            .lineLimit(1).layoutPriority(1)
+                        Spacer()
+                        AllButton(help: "Take it all to spend: nothing into savings") { parts = [:] }
+                            .opacity(placed > 0 ? 1 : 0)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(rest.money(code)).monospacedDigit().font(.body.weight(.semibold))
+                            if foreign, rest > 0, budget.rates[code] != nil {
+                                Text("≈ \(budget.convert(rest, from: code).money(budget.currency))").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(minWidth: 100, alignment: .trailing)
+                    }
                 }
-                Label(placed <= total ? String(localized: "\((total - placed).money(budget.currency)) goes to spending money")
-                                      : String(localized: "That's more than came in"),
-                      systemImage: placed <= total ? "sun.max" : "exclamationmark.triangle")
-                    .foregroundStyle(placed <= total ? AnyShapeStyle(.secondary) : AnyShapeStyle(Palette.red))
+                .card(padding: 14)
+                if rest < 0 {
+                    Label("That's more than came in", systemImage: "exclamationmark.triangle").foregroundStyle(Palette.red)
+                }
+                if foreign, budget.rates[code] == nil {
+                    Label("No \(code) rate yet: it loads from the Internet, or type one in Settings.", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
             } else {
                 let month = Calendar.current.date(byAdding: .month, value: 1, to: inflow.date)!
                 let first = Calendar.current.dateInterval(of: .month, for: month)!.start
@@ -168,16 +189,34 @@ struct InflowSheet: View {
             }
         }
         .frame(width: 520)
-        .onAppear { if isNew, inflow.income == nil, let first = earnings.first { inflow.income = first.id } }
+        .onAppear {
+            if isNew, inflow.income == nil, let first = earnings.first { inflow.income = first.id }
+            // Saved parts are in the budget's currency.
+            parts = parts.mapValues { budget.convert($0, to: inflow.currency).rounded(toPlaces: 2) }
+        }
+        .task(id: inflow.currency) { await store.refreshRates(also: inflow.currency) }
     }
 
     private func save() {
+        guard let budget = store.budget else { return }
         var inflow = inflow
         if inflow.note.isEmpty { inflow.note = inflow.income == nil ? String(localized: "Extra money") : String(localized: "Earnings") }
         inflow.allocations = inflow.income != nil ? [] : parts.filter { $0.value > 0 }.map {
-            Allocation(target: .envelope($0.key), amount: $0.value, isDone: true)
+            Allocation(target: .envelope($0.key), amount: budget.convert($0.value, from: inflow.currency).rounded(toPlaces: 2), isDone: true)
         }
         store.save(inflow)
+    }
+
+    /// "All": puts everything that's left in one place.
+    private struct AllButton: View {
+        let help: LocalizedStringKey
+        let action: () -> Void
+
+        var body: some View {
+            Button("All", action: action)
+                .buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.small)
+                .help(help)
+        }
     }
 }
 

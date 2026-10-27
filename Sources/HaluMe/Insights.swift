@@ -6,6 +6,8 @@ struct WhatIfSheet: View {
     @Environment(BudgetStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var payChange: Double = 0
+    /// The pay change the numbers below use: set when the slider is let go, so dragging stays smooth.
+    @State private var applied: Double = 0
     @State private var cost: Decimal = 0
     @State private var saving: Decimal = 0
     @State private var monthsWithout = 0
@@ -13,7 +15,7 @@ struct WhatIfSheet: View {
     var body: some View {
         if let planner = store.planner, let me = store.me {
             let currency = planner.budget.currency
-            let scenario = planner.scenario(member: me, payChange: Decimal(payChange.rounded()), newMonthlyCost: cost, newMonthlySaving: saving)
+            let scenario = planner.scenario(member: me, payChange: Decimal(applied.rounded()), newMonthlyCost: cost, newMonthlySaving: saving)
             let now = numbers(planner, me), then = numbers(scenario, me)
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -27,7 +29,9 @@ struct WhatIfSheet: View {
                             Spacer()
                             Text("\(payChange > 0 ? "+" : "")\(Int(payChange.rounded()))%").monospacedDigit().font(.body.weight(.medium))
                         }
-                        Slider(value: $payChange, in: -50...50, step: 5)
+                        Slider(value: $payChange, in: -50...50, onEditingChanged: { editing in
+                            if !editing { applied = payChange.rounded() }
+                        })
                             .accessibilityLabel(Text("Pay change, percent"))
                     }
                     HStack(alignment: .top, spacing: 12) {

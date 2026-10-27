@@ -152,6 +152,9 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
     /// Freelance or other irregular earnings: what came in during a month (recorded as inflows tied to this income)
     /// is paid out as the budget on the 1st of the next month; `expected` is a monthly estimate until then.
     public var irregular: Bool
+    /// The least the member needs to live on a month (food, cafés, clothes, fun), in the budget's currency.
+    /// The plan keeps it before savings, so savings are cut first when pay runs short. Nil: whatever is left.
+    public var living: Decimal?
 
     public init(id: UUID = UUID(), member: UUID, name: String, schedule: Schedule,
                 shift: WeekendShift = .earlier, expected: Decimal, isMonthly: Bool = false, split: PaySplit = .equal,
@@ -174,6 +177,7 @@ public struct Income: Codable, Sendable, Hashable, Identifiable {
         tax = try c.decodeIfPresent(TaxSetup.self, forKey: .tax)
         currency = try c.decodeIfPresent(String.self, forKey: .currency)
         irregular = try c.decodeIfPresent(Bool.self, forKey: .irregular) ?? false
+        living = try c.decodeIfPresent(Decimal.self, forKey: .living)
     }
 }
 
@@ -515,6 +519,8 @@ extension Budget {
         codes.formUnion(bills.compactMap(\.currency)); codes.formUnion(debts.compactMap(\.currency))
         codes.formUnion(subscriptions.compactMap(\.currency)); codes.formUnion(wishes.compactMap(\.currency))
         codes.formUnion(incomes.compactMap(\.currency)); codes.formUnion(projects.flatMap { $0.tasks.compactMap(\.currency) })
+        codes.formUnion(inflows.compactMap(\.currency)); codes.formUnion(outflows.compactMap(\.currency))
+        codes.formUnion(assets.compactMap(\.currency)); codes.formUnion(accounts.compactMap(\.currency))
         codes.remove(currency)
         return codes
     }
@@ -553,7 +559,7 @@ public struct Account: Codable, Sendable, Hashable, Identifiable {
 }
 
 extension AccountKind {
-    var holding: Holding {
+    public var holding: Holding {
         switch self {
         case .card: .card
         case .savings: .savingsAccount

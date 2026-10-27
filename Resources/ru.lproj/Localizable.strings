@@ -1005,3 +1005,36 @@
 "What's left after bills and savings is yours until the next pay. HaluMe turns it into an amount a day. Spend it however you like." = "Что остаётся после платежей и накоплений — ваше до следующей зарплаты. HaluMe превращает это в сумму на день. Тратьте как хотите.";
 "Your cushion and long-term money. Not to be touched." = "Подушка и долгие накопления: входят в запас прочности.";
 "Understood" = "Понятно";
+
+/* Living money, runway breakdown, account balance, early repayment, money in */
+"%@ less interest" = "на %@ меньше процентов";
+"%@ ÷ %@ ≈ %@ months" = "%1$@ ÷ %2$@ ≈ %3$@ мес.";
+"A change goes into or out of the saving kept here." = "Разница добавится в накопление этого счёта или спишется из него.";
+"All" = "Всё";
+"Ask your bank which one it does; for a mortgage you can usually choose" = "Уточните в банке, как он делает; по ипотеке обычно можно выбрать";
+"Becomes a saving with the account's name, one you keep. Change it on the Savings page." = "Станет накоплением «Не трогать» с названием счёта. Изменить можно на странице «Накопления».";
+"Bills, debts and subscriptions a month" = "Платежи, долги и подписки в месяц";
+"Check the Balance…" = "Сверить остаток…";
+"Food, cafés, clothes, fun: the least you need. The plan keeps it before savings, so savings are cut first when pay runs short. Leave 0 to live on whatever is left." = "Еда, кафе, одежда, развлечения — минимум, который нужен. План оставляет эти деньги раньше накоплений: если зарплаты не хватает, урезаются накопления. 0 — жить на то, что останется.";
+"If pay stopped today, your savings would last this long." = "Столько продержитесь на накоплениях, если зарплата перестанет приходить.";
+"Lasts" = "Хватит";
+"Lowers what’s left by this payment and keeps the payment you chose" = "Уменьшает остаток долга на этот взнос и сохраняет выбранный платёж";
+"Needed to live on a month" = "На жизнь в месяц";
+"No %@ rate yet: it loads from the Internet, or type one in Settings." = "Курса %@ пока нет: он загрузится из интернета, или введите его в Настройках.";
+"On it now" = "Сейчас на счёте";
+"On it now: %@, split between its savings." = "Сейчас на счёте: %@, разложено по его накоплениям.";
+"Put all that's left here" = "Положить сюда весь остаток";
+"Record the %@ Payment" = "Записать взнос %@";
+"Savings you keep" = "Накопления «Не трогать»";
+"Set how much you need to live on a month (food, cafés, clothes) for a truer number." = "Укажите, сколько нужно на жизнь в месяц (еда, кафе, одежда), — так расчёт будет точнее.";
+"Set…" = "Указать…";
+"Shorter term" = "Сократить срок";
+"Smaller payment" = "Уменьшить платёж";
+"Take it all to spend: nothing into savings" = "Всё на жизнь, ничего в накопления";
+"The payment becomes %@ instead of %@" = "Платёж станет %1$@ вместо %2$@";
+"Then" = "Затем";
+"To live on a month" = "На жизнь в месяц";
+"To live on a month, from your plan" = "На жизнь в месяц, по плану";
+"To spend until payday" = "Можно тратить до зарплаты";
+"Where it goes" = "Куда положить";
+"≈ %@" = "≈ %@";
