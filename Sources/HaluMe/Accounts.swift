@@ -158,7 +158,8 @@ struct AccountEditor: View {
         }
         .onAppear {
             let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
-            before = inside.reduce(Decimal(0)) { $0 + (store.planner?.balance(of: $1, before: tomorrow) ?? 0) }
+            // Rounded like the field shows it, so saving untouched books nothing (interest leaves many decimals).
+            before = inside.reduce(Decimal(0)) { $0 + (store.planner?.balance(of: $1, before: tomorrow) ?? 0) }.rounded(toPlaces: 2)
             balance = before
         }
     }

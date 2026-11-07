@@ -120,7 +120,7 @@ struct InflowSheet: View {
         SheetFrame(title: LocalizedStringKey(isNew ? "Money came in" : "Edit money that came in"),
                    subtitle: inflow.income == nil ? "Put some of it into savings; the rest adds to what you can spend until payday."
                                                   : "Earnings wait until the 1st: then they become next month's budget.",
-                   action: "Save", canSave: inflow.amount > 0 && rest >= 0,
+                   action: "Save", canSave: inflow.amount > 0 && rest >= 0 && (!foreign || budget.rates[code] != nil),
                    save: save, delete: isNew ? nil : { store.deleteInflow(inflow.id) }) {
             if !earnings.isEmpty {
                 Picker("What is it", selection: $inflow.income) {
@@ -191,8 +191,10 @@ struct InflowSheet: View {
         .frame(width: 520)
         .onAppear {
             if isNew, inflow.income == nil, let first = earnings.first { inflow.income = first.id }
-            // Saved parts are in the budget's currency.
-            parts = parts.mapValues { budget.convert($0, to: inflow.currency).rounded(toPlaces: 2) }
+            // Saved parts are in the budget's currency, converted at the rate of the save.
+            parts = parts.mapValues { v in
+                (inflow.rate.flatMap { $0 > 0 ? v / $0 : nil } ?? budget.convert(v, to: inflow.currency)).rounded(toPlaces: 2)
+            }
         }
         .task(id: inflow.currency) { await store.refreshRates(also: inflow.currency) }
     }
@@ -201,6 +203,7 @@ struct InflowSheet: View {
         guard let budget = store.budget else { return }
         var inflow = inflow
         if inflow.note.isEmpty { inflow.note = inflow.income == nil ? String(localized: "Extra money") : String(localized: "Earnings") }
+        inflow.rate = inflow.currency.flatMap { $0 == budget.currency ? nil : budget.rates[$0] }
         inflow.allocations = inflow.income != nil ? [] : parts.filter { $0.value > 0 }.map {
             Allocation(target: .envelope($0.key), amount: budget.convert($0.value, from: inflow.currency).rounded(toPlaces: 2), isDone: true)
         }

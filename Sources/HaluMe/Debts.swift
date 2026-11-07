@@ -283,21 +283,39 @@ struct PayoffSheet: View {
     @State private var once: Decimal = 0
     /// After a one-off payment banks either keep the payment and shorten the term, or keep the term and lower the payment.
     @State private var lowerPayment = false
+    /// Where the one-off comes from: nil is spending money, else an envelope.
+    @State private var from: UUID?
+
+    /// Everything the sheet shows, in the debt's currency; read fresh by the Record button too.
+    private struct Plan {
+        var left: Decimal, once: Decimal, more: Decimal, payment: Decimal, lowers: Bool
+        var now: Payoff?, then: Payoff?
+    }
+
+    private func plan(_ planner: Planner, _ debt: Debt, today: Date) -> Plan {
+        let left = planner.remaining(of: debt, before: tomorrow(today))
+        let due = planner.nextDue(of: debt, from: today)
+        let now = planner.payoff(of: debt, balance: left, payment: debt.payment, from: due)
+        let once = min(self.once, left)
+        let more = Decimal(extra).rounded(to: step(debt))
+        let lowers = once > 0 && once < left && lowerPayment && now != nil
+        let payment = lowers ? Payoff.annuity(balance: left - once, rate: debt.rate, count: now?.months ?? 0,
+                                              perYear: debt.biweeklyFrom != nil ? 26 : 12)
+                             : debt.payment
+        let then = planner.payoff(of: debt, balance: left - once, payment: payment + more, from: due)
+        return Plan(left: left, once: once, more: more, payment: payment, lowers: lowers, now: now, then: then)
+    }
+
+    private func step(_ debt: Debt) -> Decimal {
+        max(1, up(debt.payment / 10, to: debt.payment >= 5_000 ? 500 : 10))
+    }
 
     var body: some View {
         if let planner = store.planner, let debt = planner.budget.debts.first(where: { $0.id == debtID }) {
-            let currency = planner.budget.currency
+            let currency = debt.currency ?? planner.budget.currency
             let today = Date()
-            let left = planner.remaining(of: debt, before: tomorrow(today))
-            let due = planner.nextDue(of: debt, from: today)
-            let now = planner.payoff(of: debt, balance: left, payment: debt.payment, from: due)
-            let step = max(Decimal(500), up(debt.payment / 10, to: 500))
-            let more = Decimal(extra).rounded(to: step)
+            let p = plan(planner, debt, today: today)
             let biweekly = debt.biweeklyFrom != nil
-            let lowers = once > 0 && lowerPayment && now != nil
-            let payment = lowers ? Payoff.annuity(balance: max(0, left - once), rate: debt.rate, count: now?.months ?? 0, perYear: biweekly ? 26 : 12)
-                                 : debt.payment
-            let then = planner.payoff(of: debt, balance: max(0, left - once), payment: payment + more, from: due)
             VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -308,8 +326,8 @@ struct PayoffSheet: View {
                     Button("Edit…") { store.sheet = .debt(debt) }.buttonStyle(SecondaryButtonStyle())
                 }
                 StatRow {
-                    Stat(label: "Left", value: left.money(debt.currency ?? currency), big: true)
-                    if let now {
+                    Stat(label: "Left", value: p.left.money(currency), big: true)
+                    if let now = p.now {
                         Stat(label: "Paid off in", value: now.date.formatted(.dateTime.month(.wide).year()))
                         if debt.rate > 0 { Stat(label: "Interest ahead", value: now.interest.money(currency)) }
                     }
@@ -321,46 +339,56 @@ struct PayoffSheet: View {
                         HStack {
                             Text(LocalizedStringKey(biweekly ? "Each payment" : "Each month"))
                             Spacer()
-                            Text("\((debt.payment + more).money(currency))  (+\(more.money(currency)))").monospacedDigit()
+                            Text("\((p.payment + p.more).money(currency))  (+\(p.more.money(currency)))").monospacedDigit()
                         }
-                        Slider(value: $extra, in: 0...max(debt.payment * 2, 1_000).double)
+                        Slider(value: $extra, in: 0...max(debt.payment * 2, step(debt) * 2).double)
                     }
                     HStack(alignment: .bottom, spacing: 12) {
-                        Field("Or pay once now") { AmountField(amount: $once, currency: currency) }.frame(width: 200, alignment: .leading)
+                        Field("Or pay once now") { AmountField(amount: $once, currency: currency) }.frame(width: 160, alignment: .leading)
                         if once > 0 {
-                            Picker("Then", selection: $lowerPayment) {
-                                Text("Shorter term").tag(false)
-                                Text("Smaller payment").tag(true)
+                            Field("Pay from") {
+                                Picker("Pay from", selection: $from) {
+                                    Text("Spending money").tag(UUID?.none)
+                                    ForEach(planner.budget.envelopes) { Text($0.name).tag(UUID?.some($0.id)) }
+                                }
+                                .labelsHidden()
                             }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                            .controlSize(.large)
-                            .help("Ask your bank which one it does; for a mortgage you can usually choose")
                         }
                     }
-                    if let now, let then, more > 0 || once > 0 {
+                    if once > 0, once < p.left {
+                        Picker("Then", selection: $lowerPayment) {
+                            Text("Shorter term").tag(false)
+                            Text("Smaller payment").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .help("Ask your bank which one it does; for a mortgage you can usually choose")
+                    }
+                    if let now = p.now, let then = p.then, p.more > 0 || p.once > 0 {
                         let months = now.months - then.months
                         let saved = now.interest - then.interest
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Paid off by \(then.date.formatted(.dateTime.month(.wide).year()))").font(.body.weight(.semibold))
-                                if lowers {
-                                    Text("The payment becomes \((payment + more).money(currency)) instead of \(debt.payment.money(currency))")
+                                Text(p.once >= p.left ? String(localized: "Paid off with this payment")
+                                     : String(localized: "Paid off by \(then.date.formatted(.dateTime.month(.wide).year()))"))
+                                    .font(.body.weight(.semibold))
+                                if p.lowers {
+                                    Text("The payment becomes \((p.payment + p.more).money(currency)) instead of \(debt.payment.money(currency))")
                                         .font(.body.weight(.medium))
-                                }
-                                if lowers {
                                     if saved > 0 { Text("\(saved.money(currency)) less interest").foregroundStyle(.secondary) }
-                                } else {
-                                Text(biweekly ? String(localized: "\(months) payments sooner")
-                                     : saved > 0 ? String(localized: "\(months) months sooner, \(saved.money(currency)) less interest")
-                                     : String(localized: "\(months) months sooner"))
-                                    .foregroundStyle(.secondary)
+                                } else if months > 0 {
+                                    Text(biweekly ? String(localized: "\(months) payments sooner")
+                                         : saved > 0 ? String(localized: "\(months) months sooner, \(saved.money(currency)) less interest")
+                                         : String(localized: "\(months) months sooner"))
+                                        .foregroundStyle(.secondary)
+                                } else if saved > 0 {
+                                    Text("\(saved.money(currency)) less interest").foregroundStyle(.secondary)
                                 }
                             }
                         } icon: {
                             Image(systemName: "arrow.down.forward.circle.fill").foregroundStyle(Palette.green).font(.title2)
                         }
-                    } else if now == nil {
+                    } else if p.now == nil {
                         Text("The payment doesn't cover the interest, so this debt never ends. Pay more each month.")
                             .foregroundStyle(Palette.red)
                     }
@@ -370,20 +398,13 @@ struct PayoffSheet: View {
                 HStack {
                     Spacer()
                     Button("Close") { dismiss() }.buttonStyle(SecondaryButtonStyle()).keyboardShortcut(.cancelAction)
-                    if more > 0 || once > 0 {
-                        Button(once > 0 ? String(localized: "Record the \(once.money(currency)) Payment")
-                               : biweekly ? String(localized: "Pay \((debt.payment + more).money(currency)) each time")
-                               : String(localized: "Pay \((debt.payment + more).money(currency)) a month")) {
-                            var changed = debt
-                            changed.payment = payment + more
-                            if once > 0 {
-                                changed.balance = max(0, left - once)
-                                changed.asOf = tomorrow(today)
-                            }
-                            store.save(changed)
-                            dismiss()
+                    if p.more > 0 || p.once > 0 {
+                        Button(p.once > 0 ? String(localized: "Record the \(p.once.money(currency)) Payment")
+                               : biweekly ? String(localized: "Pay \((p.payment + p.more).money(currency)) each time")
+                               : String(localized: "Pay \((p.payment + p.more).money(currency)) a month")) {
+                            record(debt)
                         }
-                        .help(LocalizedStringKey(once > 0 ? "Lowers what’s left by this payment and keeps the payment you chose" : ""))
+                        .help(LocalizedStringKey(p.once > 0 ? "Lowers what’s left by this payment and keeps the payment you chose" : ""))
                         .buttonStyle(PrimaryButtonStyle())
                         .keyboardShortcut(.defaultAction)
                     }
@@ -392,6 +413,23 @@ struct PayoffSheet: View {
             .padding(28)
             .frame(width: 520, alignment: .leading)
         }
+    }
+
+    /// Recomputes from the current state: Return can fire a button closure from an earlier render.
+    private func record(_ debt: Debt) {
+        guard let planner = store.planner else { return }
+        let today = Date()
+        let p = plan(planner, debt, today: today)
+        var changed = debt
+        changed.payment = p.payment + p.more
+        if p.once > 0 {
+            changed.balance = p.left - p.once
+            changed.asOf = tomorrow(today)
+        }
+        store.save(changed)
+        // The one-off leaves spending money or a saving, so "a day" and stats see it.
+        if p.once > 0 { store.spend(p.once, currency: debt.currency, note: debt.name, from: from, date: today) }
+        dismiss()
     }
 
     private func up(_ value: Decimal, to step: Decimal) -> Decimal {

@@ -218,6 +218,7 @@
 "%@  (+%@)" = "%@  (+%@)";
 "Or pay once now" = "Или внести разово сейчас";
 "Paid off by %@" = "Закроете: %@";
+"Paid off with this payment" = "Этот платёж закрывает долг";
 "The payment doesn't cover the interest, so this debt never ends. Pay more each month." = "Платёж не покрывает проценты, и долг не уменьшается. Платите больше каждый месяц.";
 "Pay %@ a month" = "Платить %@ в месяц";
 

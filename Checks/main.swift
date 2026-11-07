@@ -586,6 +586,17 @@ kept2.inflows = [leftoverKept]
 let keptP = Planner(kept2, calendar: calendar)
 check(keptP.adjustment(of: me.id, from: d(2026, 10, 23), to: d(2026, 11, 9)) == 3_000 && !leftoverKept.isNewMoney, "leftover kept to spend")
 
+// Foreign money put all into a saving: a later rate change doesn't create or eat spending money.
+var usd = solo
+usd.rates["USD"] = 90
+var dollars = Inflow(member: me.id, amount: 1_000, currency: "USD", note: "Gift",
+                     allocations: [Allocation(target: .envelope(usd.envelopes[0].id), amount: 90_000, isDone: true)])
+dollars.rate = 90
+usd.rates["USD"] = 85
+check(usd.spendable(dollars) == 0, "all into savings stays all, whatever the rate does")
+dollars.allocations[0].amount = 45_000
+check(usd.spendable(dollars) == 42_500, "the dollars kept to spend follow today's rate")
+
 print(failures == 0 ? "All checks passed" : "\(failures) checks failed")
 exit(failures == 0 ? 0 : 1)
 

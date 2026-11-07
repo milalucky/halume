@@ -149,7 +149,7 @@ struct HistoryPage: View {
             let detail = income != nil ? String(localized: "Earnings, for next month")
                 : saved > 0 ? String(localized: "\(saved.money(budget.currency)) into savings") : String(localized: "To spending money")
             out.append(Entry(id: inflow.id, date: inflow.date, title: inflow.note, detail: detail,
-                             amount: budget.convert(inflow.amount, from: inflow.currency),
+                             amount: saved + budget.spendable(inflow),
                              icon: income != nil ? "tray.and.arrow.down" : "plus.circle", kind: .inflow(inflow)))
         }
         for outflow in budget.outflows {

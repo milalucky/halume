@@ -507,6 +507,13 @@ extension Budget {
         return amount * rate
     }
 
+    /// What an inflow adds to spending money, in the budget's currency: the part not put into envelopes, at today's rate.
+    public func spendable(_ inflow: Inflow) -> Decimal {
+        let placed = inflow.allocations.reduce(Decimal(0)) { $0 + $1.amount }
+        guard let rate = inflow.rate, rate > 0 else { return convert(inflow.amount, from: inflow.currency) - placed }
+        return convert(inflow.amount - placed / rate, from: inflow.currency)
+    }
+
     /// An amount in the budget's currency turned into `code`.
     public func convert(_ amount: Decimal, to code: String?) -> Decimal {
         guard let code, code != currency, let rate = rates[code], rate > 0 else { return amount }
@@ -600,6 +607,8 @@ public struct Inflow: Codable, Sendable, Hashable, Identifiable {
     public var kind: InflowKind
     /// `.fromSaving`: the envelope the money came out of.
     public var fromEnvelope: UUID?
+    /// Foreign money: the rate its allocations were converted at, so later rate changes move only the unallocated rest.
+    public var rate: Decimal?
 
     public init(id: UUID = UUID(), member: UUID, date: Date = Date(), amount: Decimal, currency: String? = nil, note: String = "",
                 allocations: [Allocation] = [], income: UUID? = nil) {
@@ -619,6 +628,7 @@ public struct Inflow: Codable, Sendable, Hashable, Identifiable {
         income = try c.decodeIfPresent(UUID.self, forKey: .income)
         kind = try c.decodeIfPresent(InflowKind.self, forKey: .kind) ?? .extra
         fromEnvelope = try c.decodeIfPresent(UUID.self, forKey: .fromEnvelope)
+        rate = try c.decodeIfPresent(Decimal.self, forKey: .rate)
     }
 
     /// New money from outside: a gift, a bonus (not a leftover, a move or a correction).

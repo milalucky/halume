@@ -293,7 +293,7 @@ struct TodayPage: View {
         let next = store.planner?.next(after: start, of: me) ?? Calendar.current.date(byAdding: .month, value: 1, to: start)!
         let inPeriod = { (d: Date) in d >= start && d < next }
         let came = budget.inflows.filter { $0.member == me && $0.income == nil && inPeriod($0.date) }.map { inflow in
-            (inflow.note, budget.convert(inflow.amount, from: inflow.currency) - inflow.allocations.reduce(0) { $0 + $1.amount })
+            (inflow.note, budget.spendable(inflow))
         }
         let went = budget.outflows.filter { $0.member == me && inPeriod($0.date) }.map { ($0.note, -budget.convert($0.amount, from: $0.currency)) }
         return came + went

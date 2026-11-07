@@ -688,7 +688,7 @@ public struct Planner: Sendable {
     public func adjustment(of member: UUID, from: Date, to: Date, after: Date? = nil) -> Decimal {
         let inside = { (d: Date) in self.day(d) >= self.day(from) && self.day(d) <= self.day(to) && after.map { d > $0 } ?? true }
         let gained = budget.inflows.filter { $0.member == member && $0.income == nil && inside($0.date) }
-            .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) - $1.allocations.reduce(0) { $0 + $1.amount } }
+            .reduce(Decimal(0)) { $0 + budget.spendable($1) }
         let spent = budget.outflows.filter { $0.member == member && inside($0.date) }
             .reduce(Decimal(0)) { $0 + budget.convert($1.amount, from: $1.currency) }
         return gained - spent
